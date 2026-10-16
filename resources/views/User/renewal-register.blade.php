@@ -71,6 +71,17 @@
                             <label class="filter-label">To Date <span class="text-danger">*</span></label>
                             <input type="date" id="txt-to-date" class="form-control">
                         </div>
+                        @isset($counters)
+                            <div class="col-md-3">
+                                <label class="filter-label">Counter</label>
+                                <select id="ddl-counter" class="form-select">
+                                    <option value="">All Counters</option>
+                                    @foreach ($counters as $c)
+                                        <option value="{{ $c->Id }}">{{ $c->Name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        @endisset
                       <div class="col-md-4 d-flex gap-2">
     <button class="btn btn-cyan w-100" id="btn-search"><i class="fas fa-search me-1"></i> Search</button>
     <button class="btn btn-secondary w-100" id="btn-reset"><i class="fas fa-times me-1"></i> Reset</button>
@@ -113,9 +124,11 @@
                                 </tr>
                             </thead>
                             <tbody id="report-tbody"></tbody>
-                            <tfoot> 
+                            <tfoot>
                                 <tr class="fw-bold" style="background:#f8f9fa;">
-                                    <td colspan="10" class="text-end">Total Paid Amount :</td>
+                                    <td colspan="4" class="text-end">Total Demand Amount :</td>
+                                    <td id="lbl-total-demand">₹ 0.00</td>
+                                    <td colspan="5" class="text-end">Total Paid Amount :</td>
                                     <td class="text-success fw-bold" id="lbl-total-paid">₹ 0.00</td>
                                     <td colspan="2"></td>
                                 </tr>
@@ -143,6 +156,12 @@
             return val ? '₹ ' + parseFloat(val).toFixed(2) : '-';
         }
 
+        function counterLabel() {
+            var $c = $('#ddl-counter');
+            if (!$c.length || !$c.val()) return '';
+            return ' | Counter: ' + $c.find('option:selected').text();
+        }
+
         $('#btn-search').on('click', function() {
             var fromDate = $('#txt-from-date').val();
             var toDate = $('#txt-to-date').val();
@@ -164,7 +183,8 @@
                 method: 'GET',
                 data: {
                     from_date: fromDate,
-                    to_date: toDate
+                    to_date: toDate,
+                    counter_id: $('#ddl-counter').val() || ''
                 },
                 beforeSend: function() {
                     $('#global-loader').fadeIn();
@@ -176,20 +196,22 @@
                     }
                     $('#lbl-total').text(res.total);
                     $('#report-meta-info').text('Period: ' + formatDate(fromDate) + ' to ' + formatDate(
-                        toDate));
+                        toDate) + counterLabel());
                         var totalPaid = 0;
+                    var totalDemand = 0;
                     var html = res.data.length === 0 ?
-                        '<tr><td colspan="12" class="text-center text-muted py-4">No records found.</td></tr>' :
+                        '<tr><td colspan="13" class="text-center text-muted py-4">No records found.</td></tr>' :
                         '';
                     $.each(res.data, function(i, r) {
-                          totalPaid += parseFloat(r.Paid_Amount) || 0; 
+                          totalPaid += parseFloat(r.Paid_Amount) || 0;
+                          totalDemand += parseFloat(r.Plan_Amount) || 0;
                         var badge = r.Pay_Status === 'Paid' ?
                             '<span class="badge bg-success">Paid</span>' :
                             '<span class="badge bg-danger">Unpaid</span>';
                         html += `<tr>
                         <td>${r.Sl_No}</td>
                         <td class="fw-bold">${r.Cust_Name}</td>
-                        <td style="color:#00c4cc;">${r.User_Id}</td>
+                        <td>${r.User_Id}</td>
                         <td>${r.Demand_Date}</td>
                         <td>${fmtAmt(r.Plan_Amount)}</td>
                         <td>${r.Inv_No ?? '-'}</td>
@@ -202,6 +224,7 @@
                         <td>${badge}</td>
                     </tr>`;
                     });
+                    $('#lbl-total-demand').text('₹ ' + totalDemand.toFixed(2));
                     $('#lbl-total-paid').text('₹ ' + totalPaid.toFixed(2));
                     $('#report-tbody').html(html);
                     $('#report-card').removeClass('d-none');
@@ -218,7 +241,7 @@
         });
 
         $('#btn-reset').on('click', function() {
-            $('#txt-from-date, #txt-to-date').val('');
+            $('#txt-from-date, #txt-to-date, #ddl-counter').val('');
             $('#report-card').addClass('d-none');
             $('#btn-print').addClass('d-none');
             $('#btn-excel').addClass('d-none');
@@ -267,7 +290,7 @@
         if (cols.length > 0) rows.push(cols);
     });
 
-    rows.push(['', '', '', '', '', '', '', '', '', 'Total Paid:', $('#lbl-total-paid').text(), '', '']);
+    rows.push(['', '', '', 'Total Demand:', $('#lbl-total-demand').text(), '', '', '', '', '', 'Total Paid:', $('#lbl-total-paid').text(), '']);
 
     var csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n');
   var blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });

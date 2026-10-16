@@ -53,11 +53,18 @@ class TransactionController extends Controller
             'Mode_Id'      => 'required|integer',
             'Discount'     => 'nullable|numeric',
             'Net_Amt'      => 'required|numeric',
+            'Txn_Id'       => 'nullable|string|max:30',
         ]);
+
+        $modeName = DB::table('mst_mode')->where('Mode_Id', $request->Mode_Id)->value('Mode');
+        $txnId = trim((string) $request->input('Txn_Id', ''));
+        if (!$modeName || strcasecmp($modeName, 'Cash') === 0) {
+            $txnId = '';
+        }
 
         try {
             $pdo  = DB::getPdo();
-            $stmt = $pdo->prepare('CALL usp_collectPayment(?,?,?,?,?,?,?,?)');
+            $stmt = $pdo->prepare('CALL usp_collectPayment(?,?,?,?,?,?,?,?,?)');
             $stmt->execute([
                 $request->Renewal_Ids,
                 $request->Cust_Id,
@@ -67,6 +74,7 @@ class TransactionController extends Controller
                 $request->Net_Amt,
                 session('user_id'),
                 session('is_admin') == 1 ? null : session('counter_id'),
+                $txnId !== '' ? $txnId : null,
             ]);
 
             $first = $stmt->fetchAll(\PDO::FETCH_OBJ);
@@ -81,8 +89,11 @@ class TransactionController extends Controller
             $row = $stmt->fetch(\PDO::FETCH_OBJ);
 
             if ($row->Error_No < 0) {
+                $stmt->closeCursor();
                 return response()->json(['success' => false, 'message' => $row->Message]);
             }
+
+            $stmt->closeCursor();
 
             Log::channel('internet')->info('Receipt generated:', ['data', $renewals]);
             $receipt  = $renewals[0];
@@ -99,24 +110,26 @@ class TransactionController extends Controller
                 $totalDisc += $r->Disc_Amount ?? 0;
             }
 
+            $receiptData = [
+                'receipt_no'   => $receipt->Receipt_No,
+                'date'         => date('d M Y', strtotime($receipt->Receipt_Date)),
+                'cust_name'    => $receipt->Cust_Name,
+                'cust_code'    => $receipt->Cust_Code      ?? '-',
+                'address'      => $receipt->Billing_Address ?? '-',
+                'account_no'   => $receipt->Account_No,
+                'user_id'      => $receipt->User_Id,
+                'amount'       => number_format($totalAmt, 2),
+                'amount_words' => $this->numberToWords($totalAmt),
+                'pay_mode'     => $receipt->Pay_Mode        ?? '-',
+                'package_name' => $receipt->Package_Name    ?? '-',
+                'period'       => implode(', ', $details),
+                'discount'     => number_format($totalDisc, 2),
+            ];
+
             return response()->json([
                 'success' => true,
                 'message' => $row->Message,
-                'receipt' => [
-                    'receipt_no'   => $receipt->Receipt_No,
-                    'date'         => date('d M Y', strtotime($receipt->Receipt_Date)),
-                    'cust_name'    => $receipt->Cust_Name,
-                    'cust_code'    => $receipt->Cust_Code      ?? '-',
-                    'address'      => $receipt->Billing_Address ?? '-',
-                    'account_no'   => $receipt->Account_No,
-                    'user_id'      => $receipt->User_Id,
-                    'amount'       => number_format($totalAmt, 2),
-                    'amount_words' => $this->numberToWords($totalAmt),
-                    'pay_mode'     => $receipt->Pay_Mode        ?? '-',
-                    'package_name' => $receipt->Package_Name    ?? '-',
-                    'period'       => implode(', ', $details),
-                    'discount'     => number_format($totalDisc, 2),
-                ]
+                'receipt' => $receiptData,
             ]);
         } catch (\Exception $e) {
             Log::channel('internet')->error('Demand collect error: ' . $e->getMessage());

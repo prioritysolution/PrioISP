@@ -71,6 +71,17 @@
                             <label class="filter-label">To Date <span class="text-danger">*</span></label>
                             <input type="date" id="txt-to-date" class="form-control">
                         </div>
+                        @isset($counters)
+                            <div class="col-md-3">
+                                <label class="filter-label">Counter</label>
+                                <select id="ddl-counter" class="form-select">
+                                    <option value="">All Counters</option>
+                                    @foreach ($counters as $c)
+                                        <option value="{{ $c->Id }}">{{ $c->Name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        @endisset
                         <div class="col-md-4 d-flex gap-2">
                             <button class="btn btn-cyan w-100" id="btn-search"><i class="fas fa-search me-1"></i>
                                 Search</button>
@@ -147,6 +158,12 @@
             return val ? '₹ ' + parseFloat(val).toFixed(2) : '-';
         }
 
+        function counterLabel() {
+            var $c = $('#ddl-counter');
+            if (!$c.length || !$c.val()) return '';
+            return ' | Counter: ' + $c.find('option:selected').text();
+        }
+
         $('#btn-search').on('click', function() {
             var fromDate = $('#txt-from-date').val();
             var toDate = $('#txt-to-date').val();
@@ -168,7 +185,8 @@
                 method: 'GET',
                 data: {
                     from_date: fromDate,
-                    to_date: toDate
+                    to_date: toDate,
+                    counter_id: $('#ddl-counter').val() || ''
                 },
                 beforeSend: function() {
                     $('#global-loader').fadeIn();
@@ -180,7 +198,7 @@
                     }
                     $('#lbl-total').text(res.total);
                     $('#report-meta-info').text('Period: ' + formatDate(fromDate) + ' to ' + formatDate(
-                        toDate));
+                        toDate) + counterLabel());
                     var html = res.data.length === 0 ?
                         '<tr><td colspan="9" class="text-center text-muted py-4">No records found.</td></tr>' :
                         '';
@@ -196,7 +214,7 @@
                         html += `<tr>
                           <td>${r.Sl_No}</td>
                           <td class="fw-bold">${r.Cust_Name}</td>
-                          <td style="color:#00c4cc;">${r.User_Id}</td>
+                          <td>${r.User_Id}</td>
                           <td>${r.Demand_Date}</td>
                           <td>${fmtAmt(r.Plan_Amount)}</td>
                           <td>${r.Inv_No ?? '-'}</td>
@@ -226,7 +244,7 @@
         });
 
         $('#btn-reset').on('click', function() {
-            $('#txt-from-date, #txt-to-date').val('');
+            $('#txt-from-date, #txt-to-date, #ddl-counter').val('');
             $('#report-card').addClass('d-none');
             $('#btn-print').addClass('d-none');
             $('#btn-excel').addClass('d-none');

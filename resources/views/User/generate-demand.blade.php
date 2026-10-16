@@ -119,6 +119,9 @@
                                         <th>Amount</th>
                                         <th>Status</th>
                                         <th>Receipt No</th>
+                                        @if ($isAdmin)
+                                            <th>Action</th>
+                                        @endif
                                     </tr>
                                 </thead>
                                 <tbody id="history-tbody"></tbody>
@@ -296,14 +299,19 @@
 
                         // payment history
                         var html = '';
+                        var colCount = {{ $isAdmin ? 8 : 7 }};
                         if (res.renewals.length === 0) {
                             html =
-                                '<tr><td colspan="7" class="text-center text-muted py-3">No payment history.</td></tr>';
+                                '<tr><td colspan="' + colCount + '" class="text-center text-muted py-3">No payment history.</td></tr>';
                         } else {
                             $.each(res.renewals, function(i, r) {
                                 var badge = r.Pay_Status == 2 ?
                                     '<span class="badge bg-success">Paid</span>' :
                                     '<span class="badge bg-danger">Unpaid</span>';
+                                var action = '';
+                                @if ($isAdmin)
+                                    action = `<td><button type="button" class="btn btn-sm btn-outline-danger btn-delete-renewal" data-id="${r.Renewal_Id}">Delete</button></td>`;
+                                @endif
                                 html += `<tr>
                                     <td>${i + 1}</td>
                                     <td>${r.Inv_No ?? '-'}</td>
@@ -312,6 +320,7 @@
                                     <td>₹ ${parseFloat(r.Total_Amount).toFixed(2)}</td>
                                     <td>${badge}</td>
                                     <td>${r.Receipt_No ?? '-'}</td>
+                                    ${action}
                                 </tr>`;
                             });
                         }
@@ -326,7 +335,7 @@
                             pageLength: 10,
                             columnDefs: [{
                                 orderable: false,
-                                targets: [5]
+                                targets: {{ $isAdmin ? '[5, 7]' : '[5]' }}
                             }]
                         });
                     }
@@ -338,6 +347,45 @@
             }
 
             $('#btn-search').on('click', search);
+
+            @if ($isAdmin)
+            $(document).on('click', '.btn-delete-renewal', function() {
+                var renewalId = $(this).data('id');
+                Swal.fire({
+                    title: 'Delete this renewal?',
+                    text: 'The row will be removed from payment history.',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#dc3545',
+                    confirmButtonText: 'Yes, Delete'
+                }).then(function(result) {
+                    if (!result.isConfirmed) return;
+                    $.ajax({
+                        url: '{{ route('admin.generate.demand.delete') }}',
+                        method: 'POST',
+                        data: {
+                            _token: '{{ csrf_token() }}',
+                            Renewal_Id: renewalId,
+                            Cust_Id: $('#cust-id').val()
+                        },
+                        beforeSend: () => $('#global-loader').fadeIn(),
+                        success: function(res) {
+                            if (!res.success) {
+                                Swal.fire('Error', res.message, 'error');
+                                return;
+                            }
+                            Swal.fire('Deleted', res.message, 'success').then(function() {
+                                location.reload();
+                            });
+                        },
+                        error: function(xhr) {
+                            Swal.fire('Error', xhr.responseJSON?.message ?? 'Something went wrong.', 'error');
+                        },
+                        complete: () => $('#global-loader').fadeOut('slow')
+                    });
+                });
+            });
+            @endif
 
             $('#btn-reset').on('click', function() {
                 if ($.fn.DataTable.isDataTable('#history-table')) {
@@ -461,7 +509,7 @@
                                         window.location.href =
                                             '{{ $isAdmin ? route('admin.demand.collection') : route('demand.collection') }}';
                                     } else {
-                                        search();
+                                        location.reload();
                                     }
                                 });
                             } else {

@@ -169,20 +169,24 @@ class ReportController extends Controller
 
 public function adminRenewalRegister(Request $request)
 {
-    return view('User.renewal-register', ['dataRoute' => 'admin.report.renewal.register.data']);
+    return view('User.renewal-register', [
+        'dataRoute' => 'admin.report.renewal.register.data',
+        'counters'  => $this->reportCounters(),
+    ]);
 }
 
 public function adminRenewalRegisterData(Request $request)
 {
     $request->validate([
-        'from_date' => 'required|date',
-        'to_date'   => 'required|date|after_or_equal:from_date',
+        'from_date'  => 'required|date',
+        'to_date'    => 'required|date|after_or_equal:from_date',
+        'counter_id' => 'nullable|integer',
     ]);
     try {
         $result = DB::select('CALL usp_getRenewalRegister(?, ?, ?, ?)', [
             $request->from_date,
             $request->to_date,
-            null,   // NULL = all counters for admin
+            $this->adminCounterId($request),
             1,
         ]);
         return response()->json(['success' => true, 'data' => $result, 'total' => count($result)]);
@@ -194,20 +198,24 @@ public function adminRenewalRegisterData(Request $request)
 
 public function adminCollectionRegister(Request $request)
 {
-    return view('User.collection-register', ['dataRoute' => 'admin.report.collection.register.data']);
+    return view('User.collection-register', [
+        'dataRoute' => 'admin.report.collection.register.data',
+        'counters'  => $this->reportCounters(),
+    ]);
 }
 
 public function adminCollectionRegisterData(Request $request)
 {
     $request->validate([
-        'from_date' => 'required|date',
-        'to_date'   => 'required|date|after_or_equal:from_date',
+        'from_date'  => 'required|date',
+        'to_date'    => 'required|date|after_or_equal:from_date',
+        'counter_id' => 'nullable|integer',
     ]);
     try {
         $result = DB::select('CALL usp_getRenewalRegister(?, ?, ?, ?)', [
             $request->from_date,
             $request->to_date,
-            null,   // NULL = all counters for admin
+            $this->adminCounterId($request),
             2,
         ]);
         return response()->json(['success' => true, 'data' => $result, 'total' => count($result)]);
@@ -219,20 +227,24 @@ public function adminCollectionRegisterData(Request $request)
 
 public function adminDueRegister(Request $request)
 {
-    return view('User.due-register', ['dataRoute' => 'admin.report.due.register.data']);
+    return view('User.due-register', [
+        'dataRoute' => 'admin.report.due.register.data',
+        'counters'  => $this->reportCounters(),
+    ]);
 }
 
 public function adminDueRegisterData(Request $request)
 {
     $request->validate([
-        'from_date' => 'required|date',
-        'to_date'   => 'required|date|after_or_equal:from_date',
+        'from_date'  => 'required|date',
+        'to_date'    => 'required|date|after_or_equal:from_date',
+        'counter_id' => 'nullable|integer',
     ]);
     try {
         $result = DB::select('CALL usp_getRenewalRegister(?, ?, ?, ?)', [
             $request->from_date,
             $request->to_date,
-            null,   // NULL = all counters for admin
+            $this->adminCounterId($request),
             3,
         ]);
         return response()->json(['success' => true, 'data' => $result, 'total' => count($result)]);
@@ -279,6 +291,16 @@ public function adminCustomerLedgerData(Request $request)
         Log::channel('internet')->error('Admin ledger data error: ' . $e->getMessage());
         return response()->json(['success' => false, 'message' => 'Something went wrong.'], 500);
     }
+}
+
+private function reportCounters()
+{
+    return DB::select('CALL usp_getCounter(?)', [0]);
+}
+
+private function adminCounterId(Request $request)
+{
+    return $request->filled('counter_id') ? (int) $request->counter_id : null;
 }
 
 

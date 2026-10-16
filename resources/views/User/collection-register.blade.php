@@ -71,6 +71,17 @@
                             <label class="filter-label">To Date <span class="text-danger">*</span></label>
                             <input type="date" id="txt-to-date" class="form-control">
                         </div>
+                        @isset($counters)
+                            <div class="col-md-3">
+                                <label class="filter-label">Counter</label>
+                                <select id="ddl-counter" class="form-select">
+                                    <option value="">All Counters</option>
+                                    @foreach ($counters as $c)
+                                        <option value="{{ $c->Id }}">{{ $c->Name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        @endisset
                         <div class="col-md-4 d-flex gap-2">
                             <button class="btn btn-cyan w-100" id="btn-search"><i class="fas fa-search me-1"></i>
                                 Search</button>
@@ -108,7 +119,8 @@
                                     <th>Invoice No.</th>
                                     <th>Renewal Details</th>
                                     <th>Pay Date</th>
-
+                                    <th>Pay Mode</th>
+                                    <th>Transaction ID</th>
                                     <th>GST</th>
                                     <th>Discount</th>
                                     <th>Paid Amount</th>
@@ -119,7 +131,7 @@
                                 <tr class="table-header text-uppercase fw-bold">
                                     <td colspan="4" class="text-end">Total</td>
                                     <td id="foot-demand">₹ 0.00</td>
-                                    <td colspan="3"></td>
+                                    <td colspan="5"></td>
                                     <td id="foot-gst">₹ 0.00</td>
                                     <td id="foot-discount">₹ 0.00</td>
                                     <td id="foot-paid">₹ 0.00</td>
@@ -149,6 +161,12 @@
             return val ? '₹ ' + parseFloat(val).toFixed(2) : '-';
         }
 
+        function counterLabel() {
+            var $c = $('#ddl-counter');
+            if (!$c.length || !$c.val()) return '';
+            return ' | Counter: ' + $c.find('option:selected').text();
+        }
+
         $('#btn-search').on('click', function() {
             var fromDate = $('#txt-from-date').val();
             var toDate = $('#txt-to-date').val();
@@ -170,7 +188,8 @@
                 method: 'GET',
                 data: {
                     from_date: fromDate,
-                    to_date: toDate
+                    to_date: toDate,
+                    counter_id: $('#ddl-counter').val() || ''
                 },
                 beforeSend: function() {
                     $('#global-loader').fadeIn();
@@ -182,9 +201,9 @@
                     }
                     $('#lbl-total').text(res.total);
                     $('#report-meta-info').text('Period: ' + formatDate(fromDate) + ' to ' + formatDate(
-                        toDate));
+                        toDate) + counterLabel());
                     var html = res.data.length === 0 ?
-                        '<tr><td colspan="10" class="text-center text-muted py-4">No records found.</td></tr>' :
+                        '<tr><td colspan="13" class="text-center text-muted py-4">No records found.</td></tr>' :
                         '';
                     var totalDemand = 0,
                         totalGst = 0,
@@ -200,12 +219,14 @@
                         html += `<tr>
                                <td>${r.Sl_No}</td>                                                                         
                                <td class="fw-bold">${r.Cust_Name}</td>
-                               <td style="color:#00c4cc;">${r.User_Id}</td>
+                               <td>${r.User_Id}</td>
                                <td>${r.Demand_Date}</td>
                                <td>${fmtAmt(r.Plan_Amount)}</td>
                                <td>${r.Inv_No ?? '-'}</td>
                                 <td>${r.Renewal_Details}</td>
                                 <td>${r.Pay_Date ? formatDate(r.Pay_Date) : '-'}</td>
+                                <td>${r.Pay_Mode ?? '-'}</td>
+                                <td>${r.Txn_Id ?? '-'}</td>
                                 <td>${fmtAmt(r.GST_Amt)}</td>
                                 <td>${r.Disc_Amount ? '₹ ' + parseFloat(r.Disc_Amount).toFixed(2) : '₹ 0.00'}</td>
                                 <td class="fw-bold text-success">${fmtAmt(r.Paid_Amount)}</td>
@@ -232,7 +253,7 @@
         });
 
         $('#btn-reset').on('click', function() {
-            $('#txt-from-date, #txt-to-date').val('');
+            $('#txt-from-date, #txt-to-date, #ddl-counter').val('');
             $('#report-card').addClass('d-none');
             $('#btn-print').addClass('d-none');
             $('#btn-excel').addClass('d-none');
@@ -261,7 +282,7 @@
         $('#btn-excel').on('click', function() {
             var rows = [
                 ['Sl#', 'Customer Name', 'User ID', 'Demand Date', 'Demand Amount', 'Invoice No',
-                    'Renewal Details', 'Pay Date', 'GST', 'Discount', 'Paid Amount'
+                    'Renewal Details', 'Pay Date', 'Pay Mode', 'Transaction ID', 'GST', 'Discount', 'Paid Amount'
                 ]
             ];
             $('#report-tbody tr').each(function() {
@@ -271,7 +292,7 @@
                 });
                 if (cols.length > 0) rows.push(cols);
             });
-            rows.push(['', '', '', 'Total:', $('#foot-demand').text(), '', '', '', $('#foot-gst').text(), $(
+            rows.push(['', '', '', 'Total:', $('#foot-demand').text(), '', '', '', '', '', $('#foot-gst').text(), $(
                 '#foot-discount').text(), $('#foot-paid').text()]);
             var csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n');
             var a = document.createElement('a');

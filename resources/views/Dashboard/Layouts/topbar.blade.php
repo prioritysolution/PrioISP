@@ -27,6 +27,12 @@
 
     <ul class="nav user-menu">
 
+        <li class="nav-item">
+            <a href="{{ route('support.tickets') }}" class="nav-link" title="Complaints">
+                <i class="fas fa-headset" style="font-size:18px;color:#1a2942;"></i>
+            </a>
+        </li>
+
         <li class="nav-item dropdown">
             <a href="javascript:void(0);" class="dropdown-toggle nav-link" data-bs-toggle="dropdown">
                 <img src="{{asset('assets/img/icons/notification-bing.svg')}}" alt="img">
@@ -101,6 +107,32 @@
             </div>
         </li>
         <style>
+            .header .user-menu {
+                display: flex !important;
+                align-items: center !important;
+                flex-wrap: nowrap !important;
+                gap: 18px;
+                margin: 0;
+            }
+            .header .user-menu > li {
+                display: flex !important;
+                align-items: center !important;
+                float: none !important;
+                margin: 0 !important;
+            }
+            .header .user-menu > li > a.nav-link {
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                height: 60px !important;
+                width: 36px;
+                padding: 0 !important;
+                line-height: 1 !important;
+            }
+            .header .user-menu > li > a.nav-link .fa-headset {
+                font-size: 18px;
+                color: #1a2942;
+            }
             /* Theme sets .user-menu.nav>li>a { height:60px } — keep logout off that selector */
             .header .user-menu .topbar-user-actions {
                 display: flex !important;

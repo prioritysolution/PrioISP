@@ -166,6 +166,14 @@
                                                 </select>
                                             </td>
                                         </tr>
+                                        <tr id="txn-row" class="d-none">
+                                            <td class="col-label">Transaction ID</td>
+                                            <td>
+                                                <input type="text" name="Txn_Id" id="col-txn"
+                                                    class="form-control form-control-sm" maxlength="30"
+                                                    placeholder="Transaction ID">
+                                            </td>
+                                        </tr>
                                         <tr>
                                             <td class="col-label">Amount (A)</td>
                                             <td><input type="number" name="Coll_Amount" id="col-amount"
@@ -638,6 +646,17 @@
             );
         });
 
+        function toggleTxnField() {
+            var name = $('#col-mode option:selected').text().trim().toLowerCase();
+            var needsTxn = $('#col-mode').val() !== '' && name !== 'cash';
+            $('#txn-row').toggleClass('d-none', !needsTxn);
+            if (!needsTxn) {
+                $('#col-txn').val('');
+            }
+        }
+
+        $('#col-mode').on('change', toggleTxnField);
+
         $('#btn-update').on('click', function() {
             var renewalIds = $('#col-renewal-ids').val();
             var mode = $('#col-mode').val();
@@ -649,6 +668,10 @@
             }
             if (!mode) {
                 Swal.fire('Warning', 'Please select payment mode.', 'warning');
+                return;
+            }
+            if ($('#col-txn').val().trim().length > 30) {
+                Swal.fire('Warning', 'Transaction ID can be at most 30 characters.', 'warning');
                 return;
             }
 

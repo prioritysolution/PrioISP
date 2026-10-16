@@ -224,7 +224,7 @@
                         <td>${r.Sl_No}</td>
                         <td class="fw-bold">${r.Cust_Name}</td>
                         <td>${r.Contact_No ?? '-'}</td>
-                        <td style="color:#00c4cc;">${r.User_Id}</td>
+                        <td>${r.User_Id}</td>
                         <td>${r.Client_Id ?? '-'}</td>
                         <td>${r.IP ?? '-'}</td>
                         <td>${r.Plan_Name}</td>

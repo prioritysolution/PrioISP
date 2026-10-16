@@ -18,6 +18,7 @@ use App\Http\Controllers\Admin\CommissionController;
 use App\Http\Controllers\Admin\NewCustomerController;
 use App\Http\Controllers\User\GenerateDemandController;
 use App\Http\Controllers\Admin\CounterWiseCollectionController;
+use App\Http\Controllers\SupportTicketController;
 
 
 Route::middleware(['guest'])->group(function () {
@@ -29,6 +30,10 @@ Route::middleware(['guest'])->group(function () {
 
 Route::middleware(['auth'])->group(function () {
   Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+  Route::get('/complaints', [SupportTicketController::class, 'index'])->name('support.tickets');
+  Route::post('/complaints', [SupportTicketController::class, 'store'])->name('support.tickets.store');
+  Route::get('/complaints/{number}', [SupportTicketController::class, 'show'])->name('support.tickets.show');
   Route::get('/dashboard/recent-collections', [DashboardController::class, 'recentCollections'])->name('dashboard.recent.collections');
 
   //generate demand
@@ -158,6 +163,7 @@ Route::middleware(['auth'])->group(function () {
   Route::get('/admin/generate-demand',        [GenerateDemandController::class, 'index'])->name('admin.generate.demand');
   Route::get('/admin/generate-demand/search', [GenerateDemandController::class, 'search'])->name('admin.generate.demand.search');
   Route::post('/admin/generate-demand/store', [GenerateDemandController::class, 'generate'])->name('admin.generate.demand.store');
+  Route::post('/admin/generate-demand/delete', [GenerateDemandController::class, 'destroy'])->name('admin.generate.demand.delete');
 
   // Admin Demand Collection
   Route::get('/admin/demand/collection', [TransactionController::class, 'index'])->name('admin.demand.collection');
