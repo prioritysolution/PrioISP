@@ -171,7 +171,13 @@
                                         &nbsp;&nbsp;|&nbsp;&nbsp;
                                         <span>PLAN NAME:</span> <span id="lbl-plan">-</span>
                                         &nbsp;&nbsp;|&nbsp;&nbsp;
+                                        <span>PLAN PERIOD:</span> <span id="lbl-plan-period">-</span>
+                                        &nbsp;&nbsp;|&nbsp;&nbsp;
+                                        <span>EXTRA ON PLAN:</span> <span id="lbl-extra-total">₹ 0.00</span>
+                                        &nbsp;&nbsp;|&nbsp;&nbsp;
                                         <span>ZONE:</span> <span id="lbl-zone" class="zone-highlight">-</span>
+                                        &nbsp;&nbsp;|&nbsp;&nbsp;
+                                        <span>ADVANCE BALANCE:</span> <span id="lbl-advance">₹ 0.00</span>
                                     </div>
                                     <div class="ledger-address-row">
                                         <span>BILLING ADDRESS:</span> <span id="lbl-address">-</span>
@@ -198,6 +204,7 @@
                                         <th>Sl #</th>
                                         <th>Demand Dt</th>
                                         <th>Demand Amount</th>
+                                        <th>Extra Amount</th>
                                         <th>Invoice No</th>
                                         <th>Pay Date</th>
                                         <th>Pay Amount</th>
@@ -206,22 +213,23 @@
                                         <th>Bill No</th>
                                         <th>Pay Mode</th>
                                         <th>Pay Status</th>
+                                        <th>Plan</th>
                                         <th>Renew From</th>
                                         <th>Renew Upto</th>
                                     </tr>
                                 </thead>
                                 <tbody id="ledger-tbody">
                                     <tr>
-                                        <td colspan="13" class="text-center text-muted py-4">
+                                        <td colspan="15" class="text-center text-muted py-4">
                                             Select a customer and date range to view ledger.
                                         </td>
                                     </tr>
                                 </tbody>
                                 <tfoot>
                                     <tr class="table-header text-uppercase">
-                                        <td colspan="5" class="text-end fw-bold">Total Paid Amount:</td>
+                                        <td colspan="6" class="text-end fw-bold">Total Paid Amount:</td>
                                         <td class="fw-bold text-success" id="lbl-total-paid">₹ 0.00</td>
-                                        <td colspan="7"></td>
+                                        <td colspan="8"></td>
                                     </tr>
                                 </tfoot>
                             </table>
@@ -240,12 +248,7 @@
 @push('scripts')
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
-        function formatDate(dateStr) {
-            if (!dateStr) return '-';
-            var d = new Date(dateStr);
-            var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            return d.getDate().toString().padStart(2, '0') + '-' + months[d.getMonth()] + '-' + d.getFullYear();
-        }
+// formatDate provided globally as dd/mm/yy
 
         $('#btn-show').on('click', function() {
             var account = $('#srch-account').val().trim();
@@ -284,7 +287,11 @@
                     $('#lbl-userid').text(c.User_Id);
                     $('#lbl-contact').text(c.Contact_No);
                     $('#lbl-plan').text(c.Plan_Name);
+                    var planFrom = c.Renew_From ? formatDate(c.Renew_From) : '-';
+                    var planUpto = c.Renew_Upto ? formatDate(c.Renew_Upto) : '-';
+                    $('#lbl-plan-period').text(planFrom + ' to ' + planUpto);
                     $('#lbl-zone').text(c.Zone_Cd ?? '-');
+                    $('#lbl-advance').text('₹ ' + (parseFloat(c.Advance_Amt) || 0).toFixed(2));
                     $('#lbl-address').text(c.Billing_Address);
                     $('#lbl-count').text(res.ledger.length);
 
@@ -292,18 +299,28 @@
                     var totalPaid = 0;
                     if (res.ledger.length === 0) {
                         html =
-                            '<tr><td colspan="13" class="text-center text-muted py-4">No ledger records found.</td></tr>';
+                            '<tr><td colspan="15" class="text-center text-muted py-4">No ledger records found.</td></tr>';
                     } else {
+                        var totalExtra = 0;
+                        var totalAdvance = 0;
                         $.each(res.ledger, function(i, r) {
                             totalPaid += parseFloat(r.Pay_Amount) || 0;
+                            if (r.Pay_Status === 'Advance') {
+                                totalAdvance += parseFloat(r.Pay_Amount) || 0;
+                            } else if ((r.Plan_Name || '') === (c.Plan_Name || '')) {
+                                totalExtra += parseFloat(r.Extra_Amt) || 0;
+                            }
                             var statusBadge = r.Pay_Status === 'Paid' ?
                                 '<span class="badge bg-success">Paid</span>' :
-                                '<span class="badge bg-danger">Unpaid</span>';
+                                (r.Pay_Status === 'Advance' ?
+                                    '<span class="badge bg-info">Advance</span>' :
+                                    '<span class="badge bg-danger">Unpaid</span>');
 
                             html += `<tr>
                             <td>${i + 1}</td>
                             <td>${formatDate(r.Demand_Date)}</td>
                             <td>${r.Total_Amount ? '₹ ' + parseFloat(r.Total_Amount).toFixed(2) : '-'}</td>
+                            <td>${r.Extra_Amt ? '₹ ' + parseFloat(r.Extra_Amt).toFixed(2) : '₹ 0.00'}</td>
                             <td>${r.Inv_No ?? '-'}</td>
                             <td>${r.Pay_Date ? formatDate(r.Pay_Date) : '-'}</td>
                             <td class="fw-bold">${r.Pay_Amount ? '₹ ' + parseFloat(r.Pay_Amount).toFixed(2) : '-'}</td>
@@ -314,6 +331,7 @@
                             <td>${r.Bill_No ?? '-'}</td>
                             <td>${r.Receipt_Mode ?? '-'}</td>
                             <td>${statusBadge}</td>
+                            <td>${r.Plan_Name ?? '-'}</td>
                             <td>${formatDate(r.Renew_From)}</td>
                             <td>${formatDate(r.Renew_Upto)}</td>
                         </tr>`;
@@ -322,6 +340,10 @@
 
                     $('#ledger-tbody').html(html);
                     $('#lbl-total-paid').text('₹ ' + totalPaid.toFixed(2));
+                    $('#lbl-extra-total').text('₹ ' + (typeof totalExtra === 'undefined' ? 0 : totalExtra).toFixed(2));
+                    if (typeof totalAdvance !== 'undefined' && totalAdvance > 0) {
+                        $('#lbl-advance').text('₹ ' + (parseFloat(c.Advance_Amt) || 0).toFixed(2) + ' (paid ₹ ' + totalAdvance.toFixed(2) + ')');
+                    }
                     $('#ledger-card').removeClass('d-none');
                     $('#btn-print').removeClass('d-none');
                     $('#btn-excel').removeClass('d-none');
@@ -377,7 +399,7 @@
             <hr class="divider">
             <div class="row1"><b>Billing Address:</b> ${$('#lbl-address').text()}</div>
             <hr class="divider">
-            <div><b>Total Records:</b> ${$('#lbl-count').text()} &nbsp;|&nbsp; <b>Printed On:</b> ${new Date().toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'})}</div>
+            <div><b>Total Records:</b> ${$('#lbl-count').text()} &nbsp;|&nbsp; <b>Printed On:</b> ${formatDate(new Date().toISOString().slice(0, 10))}</div>
         </div>
         ${$('#ledger-table').prop('outerHTML')
             .replace(/badge bg-success/g,      'badge-paid')
@@ -400,7 +422,7 @@
             rows.push(['Total Records:', $('#lbl-count').text()]);
             rows.push([]);
 
-            rows.push(['Sl#', 'Demand Date', 'Demand Amount', 'Invoice No', 'Pay Date', 'Pay Amount', 'Disc Amt', 'Due Amt', 'Bill No', 'Pay Mode', 'Pay Status', 'Renew From', 'Renew Upto']);
+            rows.push(['Sl#', 'Demand Date', 'Demand Amount', 'Extra Amount', 'Invoice No', 'Pay Date', 'Pay Amount', 'Disc Amt', 'Due Amt', 'Bill No', 'Pay Mode', 'Pay Status', 'Plan', 'Renew From', 'Renew Upto']);
 
             $('#ledger-tbody tr').each(function() {
                 var cols = [];

@@ -167,6 +167,96 @@ class ReportController extends Controller
 
 
 
+  public function extraRegister(Request $request)
+{
+    return view('User.extra-register', ['dataRoute' => 'report.extra.register.data']);
+}
+
+    public function extraRegisterData(Request $request)
+    {
+        $request->validate([
+            'from_date' => 'required|date',
+            'to_date'   => 'required|date|after_or_equal:from_date',
+            'customer'  => 'nullable|string|max:100',
+        ]);
+        try {
+            $result = $this->extraRows(
+                $request->from_date,
+                $request->to_date,
+                session('counter_id'),
+                $request->input('customer')
+            );
+            return response()->json(['success' => true, 'data' => $result, 'total' => count($result)]);
+        } catch (\Exception $e) {
+            Log::channel('internet')->error('Extra register error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Something went wrong.'], 500);
+        }
+    }
+
+public function adminExtraRegister(Request $request)
+{
+    return view('User.extra-register', [
+        'dataRoute' => 'admin.report.extra.register.data',
+        'counters'  => $this->reportCounters(),
+    ]);
+}
+
+public function adminExtraRegisterData(Request $request)
+{
+    $request->validate([
+        'from_date'  => 'required|date',
+        'to_date'    => 'required|date|after_or_equal:from_date',
+        'counter_id' => 'nullable|integer',
+        'customer'   => 'nullable|string|max:100',
+    ]);
+    try {
+        $result = $this->extraRows(
+            $request->from_date,
+            $request->to_date,
+            $this->adminCounterId($request),
+            $request->input('customer')
+        );
+        return response()->json(['success' => true, 'data' => $result, 'total' => count($result)]);
+    } catch (\Exception $e) {
+        Log::channel('internet')->error('Admin extra register error: ' . $e->getMessage());
+        return response()->json(['success' => false, 'message' => 'Something went wrong.'], 500);
+    }
+}
+
+private function extraRows(string $from, string $to, $counterId, ?string $customer): array
+{
+    $customer = trim((string) $customer);
+    $rows = DB::select("
+        SELECT
+            ROW_NUMBER() OVER (ORDER BY c.Cust_Name, r.Renew_From, pkg.Package_Name) AS Sl_No,
+            c.Cust_Name,
+            c.User_Id,
+            c.Account_No,
+            IFNULL(pkg.Package_Name, '') AS Package_Name,
+            r.Renew_From,
+            r.Renew_Upto,
+            SUM(r.Extra_Amt) AS Extra_Amt
+        FROM trans_renewal r
+        INNER JOIN mst_customer c ON c.Cust_Id = r.Cust_Id
+        LEFT JOIN mst_package pkg ON pkg.Package_Id = r.Plan_Id
+        WHERE COALESCE(r.Extra_Amt, 0) > 0
+          AND r.Renew_From <= ?
+          AND r.Renew_Upto >= ?
+          AND (? IS NULL OR r.Counter_Id = ?)
+          AND (
+                ? = ''
+                OR c.Cust_Name LIKE CONCAT('%', ?, '%')
+                OR c.User_Id LIKE CONCAT('%', ?, '%')
+                OR c.Account_No LIKE CONCAT('%', ?, '%')
+                OR c.Cust_Code LIKE CONCAT('%', ?, '%')
+          )
+        GROUP BY c.Cust_Id, c.Cust_Name, c.User_Id, c.Account_No, r.Plan_Id, pkg.Package_Name, r.Renew_From, r.Renew_Upto
+        ORDER BY c.Cust_Name, r.Renew_From, pkg.Package_Name
+    ", [$to, $from, $counterId, $counterId, $customer, $customer, $customer, $customer, $customer]);
+
+    return $rows;
+}
+
 public function adminRenewalRegister(Request $request)
 {
     return view('User.renewal-register', [

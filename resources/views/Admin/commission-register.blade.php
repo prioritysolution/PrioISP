@@ -240,12 +240,7 @@
 @push('scripts')
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
-        function formatDate(d) {
-            if (!d) return '-';
-            var dt = new Date(d);
-            var m = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            return dt.getDate().toString().padStart(2, '0') + '-' + m[dt.getMonth()] + '-' + dt.getFullYear();
-        }
+// formatDate provided globally as dd/mm/yy
 
         function fmtAmt(v) {
             return '₹ ' + (parseFloat(v) || 0).toFixed(2);

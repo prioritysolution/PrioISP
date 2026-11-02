@@ -112,6 +112,7 @@
                                     <th>User ID</th>
                                     <th>Demand Date</th>
                                     <th>Demand Amount</th>
+                                    <th>Extra Amount</th>
                                     <th>Invoice No.</th>
 
                                     <th>Renewal Details</th>
@@ -128,6 +129,7 @@
                                 <tr class="fw-bold" style="background:#f8f9fa;">
                                     <td colspan="4" class="text-end">Total Demand Amount :</td>
                                     <td id="lbl-total-demand">₹ 0.00</td>
+                                    <td id="lbl-total-extra">₹ 0.00</td>
                                     <td colspan="5" class="text-end">Total Paid Amount :</td>
                                     <td class="text-success fw-bold" id="lbl-total-paid">₹ 0.00</td>
                                     <td colspan="2"></td>
@@ -145,12 +147,7 @@
 @push('scripts')
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
-        function formatDate(dateStr) {
-            if (!dateStr) return '-';
-            var d = new Date(dateStr);
-            var m = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            return d.getDate().toString().padStart(2, '0') + '-' + m[d.getMonth()] + '-' + d.getFullYear();
-        }
+// formatDate provided globally as dd/mm/yy
 
         function fmtAmt(val) {
             return val ? '₹ ' + parseFloat(val).toFixed(2) : '-';
@@ -199,12 +196,14 @@
                         toDate) + counterLabel());
                         var totalPaid = 0;
                     var totalDemand = 0;
+                    var totalExtra = 0;
                     var html = res.data.length === 0 ?
-                        '<tr><td colspan="13" class="text-center text-muted py-4">No records found.</td></tr>' :
+                        '<tr><td colspan="14" class="text-center text-muted py-4">No records found.</td></tr>' :
                         '';
                     $.each(res.data, function(i, r) {
                           totalPaid += parseFloat(r.Paid_Amount) || 0;
                           totalDemand += parseFloat(r.Plan_Amount) || 0;
+                          totalExtra += parseFloat(r.Extra_Amt) || 0;
                         var badge = r.Pay_Status === 'Paid' ?
                             '<span class="badge bg-success">Paid</span>' :
                             '<span class="badge bg-danger">Unpaid</span>';
@@ -212,8 +211,9 @@
                         <td>${r.Sl_No}</td>
                         <td class="fw-bold">${r.Cust_Name}</td>
                         <td>${r.User_Id}</td>
-                        <td>${r.Demand_Date}</td>
+                        <td>${formatDate(r.Demand_Date)}</td>
                         <td>${fmtAmt(r.Plan_Amount)}</td>
+                        <td>${fmtAmt(r.Extra_Amt)}</td>
                         <td>${r.Inv_No ?? '-'}</td>
                         <td>${r.Renewal_Details}</td>
                         <td>${r.Pay_Date ? formatDate(r.Pay_Date) : '-'}</td>
@@ -225,6 +225,7 @@
                     </tr>`;
                     });
                     $('#lbl-total-demand').text('₹ ' + totalDemand.toFixed(2));
+                    $('#lbl-total-extra').text('₹ ' + totalExtra.toFixed(2));
                     $('#lbl-total-paid').text('₹ ' + totalPaid.toFixed(2));
                     $('#report-tbody').html(html);
                     $('#report-card').removeClass('d-none');
@@ -278,7 +279,7 @@
     var fromDate = $('#txt-from-date').val();
     var toDate   = $('#txt-to-date').val();
 
-    var rows = [['Sl#', 'Customer Name', 'User ID', 'Demand Date', 'Demand Amount',
+    var rows = [['Sl#', 'Customer Name', 'User ID', 'Demand Date', 'Demand Amount', 'Extra Amount',
                  'Invoice No', 'Renewal Details', 'Pay Date', 'Pay Mode',
                  'Discount', 'Paid Amount', 'Due Amount', 'Pay Status']];
 
@@ -290,7 +291,7 @@
         if (cols.length > 0) rows.push(cols);
     });
 
-    rows.push(['', '', '', 'Total Demand:', $('#lbl-total-demand').text(), '', '', '', '', '', 'Total Paid:', $('#lbl-total-paid').text(), '']);
+    rows.push(['', '', '', 'Total Demand:', $('#lbl-total-demand').text(), $('#lbl-total-extra').text(), '', '', '', '', '', 'Total Paid:', $('#lbl-total-paid').text(), '']);
 
     var csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n');
   var blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });

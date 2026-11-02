@@ -99,8 +99,8 @@ $(document).ready(function () {
                     $('#commission-tbody').append(
                         '<tr>' +
                         '<td>' + (i + 1) + '</td>' +
-                        '<td>' + (row.From_Date ?? '') + '</td>' +
-                        '<td>' + (row.To_Date ?? '') + '</td>' +
+                        '<td>' + formatDate(row.From_Date) + '</td>' +
+                        '<td>' + formatDate(row.To_Date) + '</td>' +
                         '<td>' + (row.Zone_Name ?? '-') + '</td>' +
                         '<td>' + (row.Customer_Id ?? '') + '</td>' +
                         '<td>' + (row.Package_Id ?? '') + '</td>' +

@@ -357,7 +357,7 @@
                                         <td class="text-muted">{{ $cust->Package }}</td>
                                         <td class="text-muted">{{ $zoneLabels[$cust->Zone_Id] ?? '-' }}</td>
                                         <td class="text-muted">
-                                            {{ $cust->Exp_Date ? date('d M Y', strtotime($cust->Exp_Date)) : '-' }}</td>
+                                            {{ $cust->Exp_Date ? date('d/m/y', strtotime($cust->Exp_Date)) : '-' }}</td>
                                         <td>
                                             @if ($cust->Payment_Status === 'Paid')
                                                 <span class="text-success fw-bold">Paid</span>

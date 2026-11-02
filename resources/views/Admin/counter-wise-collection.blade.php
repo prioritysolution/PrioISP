@@ -127,7 +127,7 @@ $(document).ready(function () {
 
                 $('#result-tbody').html(html);
                 $('#lbl-grand-total').text('₹ ' + grandTotal.toFixed(2));
-                $('#lbl-meta').text($('#ddl-counter option:selected').text() + ' | ' + fromDate + ' to ' + toDate);
+                $('#lbl-meta').text($('#ddl-counter option:selected').text() + ' | ' + formatDate(fromDate) + ' to ' + formatDate(toDate));
                 $('#result-card').removeClass('d-none');
             },
             error: function() { Swal.fire('Error', 'Something went wrong.', 'error'); },

@@ -249,6 +249,11 @@
                                 <span class="field-label" style="width: 70px;">By</span>
                                 <span class="dotted-line flex-grow-1" id="r-pay-mode">&nbsp;</span>
                             </div>
+                            <!-- Transaction ID -->
+                            <div class="row-field" id="r-txn-row" style="display:none;">
+                                <span class="field-label" style="width: 110px;">Transaction ID</span>
+                                <span class="dotted-line flex-grow-1" id="r-txn-id">&nbsp;</span>
+                            </div>
                             <!-- Bank & Cheque Details -->
                             <div class="row-field">
                                 <span class="field-label" style="width: 80px;">Bank Name</span>
@@ -383,9 +388,27 @@
                     $('#r-user-id').text(b.user_id);
                     $('#r-amount').text(b.amount);
                     $('#r-amount-words').text(b.amount_words);
-                    $('#r-period').text('Rs. ' + b.amount + '/- against Renew ' + b.package_name +
-                        ' package for ' + b.renew_from + ' To ' + b.renew_upto);
+                    var paid = parseFloat(String(b.amount || '0').replace(/,/g, '')) || 0;
+                    var extraAmt = parseFloat(String(b.extra_amt || '0').replace(/,/g, '')) || 0;
+                    var planAmt = Math.max(0, paid - extraAmt);
+                    var periodParts = [];
+                    if (planAmt > 0.009) {
+                        periodParts.push('Rs. ' + planAmt.toFixed(2) + '/- against Renew ' + b.package_name +
+                            ' package for ' + b.renew_from + ' To ' + b.renew_upto);
+                    }
+                    if (extraAmt > 0.009) {
+                        periodParts.push('Rs. ' + extraAmt.toFixed(2) + '/- extra amount against ' + b.package_name +
+                            ' package for ' + b.renew_from + ' To ' + b.renew_upto);
+                    }
+                    $('#r-period').text(periodParts.join('. '));
                     $('#r-pay-mode').text(b.pay_mode ?? '');
+                    if (b.txn_id) {
+                        $('#r-txn-id').text(b.txn_id);
+                        $('#r-txn-row').show();
+                    } else {
+                        $('#r-txn-id').text('');
+                        $('#r-txn-row').hide();
+                    }
                     $('#receiptModal').modal('show');
                 },
                 error: function() {

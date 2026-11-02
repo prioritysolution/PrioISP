@@ -24,25 +24,67 @@ class GenerateDemandController extends Controller
     public function search(Request $request)
     {
         try {
-            $pdo  = DB::getPdo();
-            $stmt = $pdo->prepare('CALL usp_searchCustomerDemand(?,?,?,?,?)');
-            $stmt->execute([
-                $request->filled('account') ? $request->account : null,
-                $request->filled('userid')  ? $request->userid  : null,
-                $request->filled('code')    ? $request->code    : null,
-                $request->filled('name')    ? $request->name    : null,
-                session('counter_id'),
-            ]);
+            $customerQuery = DB::table('mst_customer as c')
+                ->join('mst_package as p', 'p.Package_Id', '=', 'c.Package_Id')
+                ->whereIn('c.Status', [1, 2])
+                ->select(
+                    'c.Cust_Id',
+                    'c.Cust_Code',
+                    'c.Cust_Name',
+                    'c.Account_No',
+                    'c.User_Id',
+                    'c.Contact_No',
+                    'c.Renew_From',
+                    'c.Renew_Upto',
+                    'c.Due_Amount',
+                    'c.Status',
+                    'c.Advance_Amt',
+                    'p.Package_Name',
+                    'p.Basic_Amt',
+                    'p.Total_Amt',
+                    'p.Plan_Days'
+                );
 
-            $customers = $stmt->fetchAll(\PDO::FETCH_OBJ);
-            $stmt->nextRowset();
-            $renewals = $stmt->fetchAll(\PDO::FETCH_OBJ);
+            if ($request->filled('account')) {
+                $customerQuery->where('c.Account_No', 'like', '%' . $request->account . '%');
+            }
+            if ($request->filled('userid')) {
+                $customerQuery->where('c.User_Id', 'like', '%' . $request->userid . '%');
+            }
+            if ($request->filled('code')) {
+                $customerQuery->where('c.Cust_Code', 'like', '%' . $request->code . '%');
+            }
+            if ($request->filled('name')) {
+                $customerQuery->where('c.Cust_Name', 'like', '%' . $request->name . '%');
+            }
 
-            if (empty($customers)) {
+            $customer = $customerQuery->first();
+            if (!$customer) {
                 return response()->json(['success' => false, 'message' => 'No customer found.']);
             }
 
-            return response()->json(['success' => true, 'customer' => $customers[0], 'renewals' => $renewals]);
+            $renewals = DB::table('trans_renewal')
+                ->where('Cust_Id', $customer->Cust_Id)
+                ->orderByDesc('Demand_Date')
+                ->orderByDesc('Renewal_Id')
+                ->get([
+                    'Renewal_Id',
+                    'Inv_No',
+                    'Demand_Date',
+                    'Renew_From',
+                    'Renew_Upto',
+                    'Total_Amount',
+                    'Pay_Status',
+                    'Receipt_No',
+                    'Receipt_Date',
+                    'Advance_Adj',
+                ]);
+
+            return response()->json([
+                'success'  => true,
+                'customer' => $customer,
+                'renewals' => $renewals,
+            ]);
         } catch (\Exception $e) {
             Log::channel('internet')->error('Generate demand search error: ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Something went wrong.'], 500);
@@ -52,10 +94,11 @@ class GenerateDemandController extends Controller
     public function generate(Request $request)
     {
         $request->validate([
-            'Cust_Id'    => 'required|integer',
-            'Renew_From' => 'required|date',
-            'Renew_Upto' => 'required|date|after:Renew_From',
-            'Package_Id' => 'nullable|integer',
+            'Cust_Id'      => 'required|integer',
+            'Renewal_Date' => 'required|date',
+            'Renew_From'   => 'required|date',
+            'Renew_Upto'   => 'required|date|after:Renew_From',
+            'Package_Id'   => 'nullable|integer',
         ]);
 
         try {
@@ -69,7 +112,7 @@ class GenerateDemandController extends Controller
                 : null;
 
             $pdo  = DB::getPdo();
-            $stmt = $pdo->prepare('CALL usp_generateDemandManual(?,?,?,?,?,?)');
+            $stmt = $pdo->prepare('CALL usp_generateDemandManual(?,?,?,?,?,?,?)');
             $stmt->execute([
                 $request->Cust_Id,
                 $request->Renew_From,
@@ -77,6 +120,7 @@ class GenerateDemandController extends Controller
                 session('user_id'),
                 session('is_admin') == 1 ? null : session('counter_id'),
                 $request->Package_Id ?: null,
+                $request->Renewal_Date,
             ]);
 
             $row = $stmt->fetch(\PDO::FETCH_OBJ);
@@ -98,8 +142,8 @@ class GenerateDemandController extends Controller
                         : (session('counter_name') ?: session('full_name') ?: 'Counter');
 
                     $packageName = $package->Package_Name ?? '-';
-                    $from = date('d M Y', strtotime($request->Renew_From));
-                    $upto = date('d M Y', strtotime($request->Renew_Upto));
+                    $from = date('d/m/y', strtotime($request->Renew_From));
+                    $upto = date('d/m/y', strtotime($request->Renew_Upto));
 
                     Mail::to($adminMail)->queue(new DemandGeneratedMail([
                         'generated_by' => $generatedBy,
@@ -162,7 +206,33 @@ class GenerateDemandController extends Controller
                 $log = (array) $renewal;
                 $log['Deleted_By'] = session('user_id');
                 $log['Deleted_On'] = now();
+                $logColumns = collect(DB::select('SHOW COLUMNS FROM trans_renewal_log'))->pluck('Field')->flip();
+                unset($log['Log_Id']);
+                $log = array_intersect_key($log, $logColumns->all());
                 DB::table('trans_renewal_log')->insert($log);
+
+                if (!empty($renewal->Receipt_No)) {
+                    $payments = DB::table('trans_renewal_payment')
+                        ->where('Receipt_No', $renewal->Receipt_No)
+                        ->get();
+                    foreach ($payments as $payment) {
+                        DB::table('trans_renewal_payment_log')->insert([
+                            'Payment_Id'   => $payment->Payment_Id,
+                            'Receipt_No'   => $payment->Receipt_No,
+                            'Renewal_Id'   => $renewal->Renewal_Id,
+                            'Cust_Id'      => $payment->Cust_Id,
+                            'Receipt_Date' => $payment->Receipt_Date,
+                            'Mode_Id'      => $payment->Mode_Id,
+                            'Paid_Amt'     => $payment->Paid_Amt,
+                            'Txn_Id'       => $payment->Txn_Id,
+                            'Counter_Id'   => $payment->Counter_Id,
+                            'Created_By'   => $payment->Created_By,
+                            'Created_On'   => $payment->Created_On,
+                            'Deleted_By'   => session('user_id'),
+                            'Deleted_On'   => now(),
+                        ]);
+                    }
+                }
 
                 DB::table('trans_renewal')->where('Renewal_Id', $renewal->Renewal_Id)->delete();
 

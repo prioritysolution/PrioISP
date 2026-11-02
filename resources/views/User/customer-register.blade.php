@@ -154,12 +154,7 @@
 @push('scripts')
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
-        function formatDate(dateStr) {
-            if (!dateStr) return '-';
-            var d = new Date(dateStr);
-            var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            return d.getDate().toString().padStart(2, '0') + '-' + months[d.getMonth()] + '-' + d.getFullYear();
-        }
+// formatDate provided globally as dd/mm/yy
 
         $('#btn-search').on('click', function() {
             var fromDate = $('#txt-from-date').val();

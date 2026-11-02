@@ -249,12 +249,12 @@
                             html += `<tr>
                         <td>${i + 1}</td>
                         <td>${r.Cust_Id}</td>
-                        <td>${r.Demand_Date ?? '-'}</td>
-                        <td>${r.Renew_From ?? '-'}</td>
-                        <td>${r.Renew_Upto ?? '-'}</td>
+                        <td>${formatDate(r.Demand_Date)}</td>
+                        <td>${formatDate(r.Renew_From)}</td>
+                        <td>${formatDate(r.Renew_Upto)}</td>
                         <td>${parseFloat(r.Total_Amount).toFixed(2)}</td>
                         <td>${r.Receipt_No ?? '-'}</td>
-                        <td>${r.Receipt_Date ?? '-'}</td>
+                        <td>${formatDate(r.Receipt_Date)}</td>
                         <td>${r.Mode_Name ?? '-'}</td>
                         <td>
                             <button class="btn btn-sm btn-cyan btn-edit"

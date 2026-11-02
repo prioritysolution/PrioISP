@@ -69,7 +69,7 @@
                     <div class="card-body p-4">
                         <div class="row g-3">
                             <input type="hidden" id="cust-id">
-                            <div class="col-md-3">
+                            <div class="col-md-2">
                                 <label class="filter-label">Customer Name</label>
                                 <div class="fw-bold" id="show-name"></div>
                             </div>
@@ -77,7 +77,7 @@
                                 <label class="filter-label">Account No</label>
                                 <div class="fw-bold" id="show-account"></div>
                             </div>
-                            <div class="col-md-2">
+                            <div class="col-md-1">
                                 <label class="filter-label">User ID</label>
                                 <div class="fw-bold" id="show-userid"></div>
                             </div>
@@ -92,6 +92,10 @@
                             <div class="col-md-1">
                                 <label class="filter-label">Due</label>
                                 <div class="fw-bold text-danger" id="show-due"></div>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="filter-label">Advance paid</label>
+                                <div class="fw-bold text-success" id="show-advance"></div>
                             </div>
                         </div>
                     </div>
@@ -117,6 +121,7 @@
                                         <th>Demand Date</th>
                                         <th>Period</th>
                                         <th>Amount</th>
+                                        <th>Advance</th>
                                         <th>Status</th>
                                         <th>Receipt No</th>
                                         @if ($isAdmin)
@@ -174,6 +179,10 @@
                                     style="font-size:0.7rem;font-weight:700;color:#6c757d;text-transform:uppercase;">Expiry:
                                 </span>
                                 <span class="fw-bold text-danger" id="m-cur-expiry">-</span>
+                                <span class="ms-3"
+                                    style="font-size:0.7rem;font-weight:700;color:#6c757d;text-transform:uppercase;">Advance paid:
+                                </span>
+                                <span class="fw-bold text-success" id="m-cur-advance">₹ 0.00</span>
                             </div>
                         </div>
                     </div>
@@ -222,6 +231,11 @@
                             </div>
                         </div>
 
+                        <div class="mb-3">
+                            <label class="filter-label">Renewal Date <span class="text-danger">*</span></label>
+                            <input type="date" name="Renewal_Date" id="f-renewal-date" class="form-control"
+                                value="{{ date('Y-m-d') }}">
+                        </div>
                         <div class="mb-3">
                             <label class="filter-label">Renew From <span class="text-danger">*</span></label>
                             <input type="date" name="Renew_From" id="f-renew-from" class="form-control">
@@ -285,8 +299,16 @@
                         $('#show-account').text(c.Account_No);
                         $('#show-userid').text(c.User_Id);
                         $('#show-package').text(c.Package_Name + ' (₹' + c.Total_Amt + ')');
-                       $('#show-upto').text(c.Renew_Upto ? c.Renew_Upto : '-');
+                       $('#show-upto').text(c.Renew_Upto ? formatDate(c.Renew_Upto) : '-');
                         $('#show-due').text('₹ ' + parseFloat(c.Due_Amount).toFixed(2));
+                        var advancePaid = parseFloat(c.Advance_Amt) || 0;
+                        $.each(res.renewals, function(i, r) {
+                            if (r.Pay_Status != 2) {
+                                advancePaid += parseFloat(r.Advance_Adj) || 0;
+                            }
+                        });
+                        $('#show-advance').text('₹ ' + advancePaid.toFixed(2));
+                        c.Advance_Amt = advancePaid;
 
                         // store customer data for modal
                         $('#cust-id')
@@ -295,11 +317,12 @@
                             .data('pkg-basic', c.Basic_Amt)
                             .data('pkg-total', c.Total_Amt)
                             .data('plandays',   c.Plan_Days) 
-                            .data('renew-upto', c.Renew_Upto);
+                            .data('renew-upto', c.Renew_Upto)
+                            .data('advance', advancePaid);
 
                         // payment history
                         var html = '';
-                        var colCount = {{ $isAdmin ? 8 : 7 }};
+                        var colCount = {{ $isAdmin ? 9 : 8 }};
                         if (res.renewals.length === 0) {
                             html =
                                 '<tr><td colspan="' + colCount + '" class="text-center text-muted py-3">No payment history.</td></tr>';
@@ -315,9 +338,10 @@
                                 html += `<tr>
                                     <td>${i + 1}</td>
                                     <td>${r.Inv_No ?? '-'}</td>
-                                    <td>${r.Demand_Date ?? '-'}</td>
-                                    <td>${r.Renew_From} - ${r.Renew_Upto}</td>
+                                    <td>${formatDate(r.Demand_Date)}</td>
+                                    <td>${formatDate(r.Renew_From)} - ${formatDate(r.Renew_Upto)}</td>
                                     <td>₹ ${parseFloat(r.Total_Amount).toFixed(2)}</td>
+                                    <td>₹ ${(parseFloat(r.Advance_Adj) || 0).toFixed(2)}</td>
                                     <td>${badge}</td>
                                     <td>${r.Receipt_No ?? '-'}</td>
                                     ${action}
@@ -335,7 +359,7 @@
                             pageLength: 10,
                             columnDefs: [{
                                 orderable: false,
-                                targets: {{ $isAdmin ? '[5, 7]' : '[5]' }}
+                                targets: {{ $isAdmin ? '[6, 8]' : '[6]' }}
                             }]
                         });
                     }
@@ -403,11 +427,13 @@
                 $('#m-cur-days').text(custData.data('pkg-days') ?? '-');
                 $('#m-cur-basic').text('₹ ' + parseFloat(custData.data('pkg-basic') || 0).toFixed(2));
                 $('#m-cur-total').text('₹ ' + parseFloat(custData.data('pkg-total') || 0).toFixed(2));
-                $('#m-cur-expiry').text(custData.data('renew-upto') ?? '-');
+                $('#m-cur-expiry').text(custData.data('renew-upto') ? formatDate(custData.data('renew-upto')) : '-');
+                $('#m-cur-advance').text('₹ ' + (parseFloat(custData.data('advance')) || 0).toFixed(2));
 
                 // reset form
                 $('#f-package').val('');
                 $('#new-pkg-info').addClass('d-none');
+                $('#f-renewal-date').val(new Date().toISOString().split('T')[0]);
 
                 // auto-fill renew from
                 var renewUpto = custData.data('renew-upto');
@@ -465,9 +491,14 @@
             });
 
             $('#btn-generate').on('click', function() {
+                var renewalDate = $('#f-renewal-date').val();
                 var from = $('#f-renew-from').val();
                 var upto = $('#f-renew-upto').val();
 
+                if (!renewalDate) {
+                    Swal.fire('Validation', 'Please enter Renewal Date.', 'warning');
+                    return;
+                }
                 if (!from || !upto) {
                     Swal.fire('Validation', 'Please enter Renew From date.', 'warning');
                     return;
@@ -475,7 +506,7 @@
 
                 Swal.fire({
                     title: 'Confirm',
-                    text: 'Generate renewal for ' + from + ' to ' + upto + '?',
+                    text: 'Generate renewal dated ' + renewalDate + ' for ' + from + ' to ' + upto + '?',
                     icon: 'question',
                     showCancelButton: true,
                     confirmButtonColor: '#00c4cc',

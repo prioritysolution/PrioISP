@@ -63,7 +63,7 @@
                 }
             </style>
 
-            <div class="page-title-banner shadow-sm">Demand Collection</div>
+            <div class="page-title-banner shadow-sm">Payment Collection</div>
 
             {{-- Search --}}
             <div class="card border-0 shadow-sm mb-4">
@@ -118,6 +118,8 @@
                                             <th>Cust Name</th>
                                             <th>Inv No</th>
                                             <th>Invoice Period</th>
+                                            <th>Plan Amount</th>
+                                            <th>Advance adjusted</th>
                                             <th>Due Amount</th>
                                             <th>Action</th>
                                         </tr>
@@ -146,51 +148,70 @@
                                     </h6>
                                     <table class="table table-sm table-borderless mb-3">
                                         <tr>
-                                            <td class="col-label" style="width:50%;">Total Due</td>
+                                            <td class="col-label" style="width:50%;">Plan amount</td>
+                                            <td class="fw-bold" id="col-plan">₹ 0.00</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="col-label">Advance adjusted</td>
+                                            <td class="fw-bold" id="col-advance-adj">₹ 0.00</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="col-label">Total Due</td>
                                             <td class="fw-bold text-danger" id="col-total">₹ 0.00</td>
                                         </tr>
                                         <tr>
                                             <td class="col-label">Collection Date</td>
-                                            <td><input type="date" name="Receipt_Date" id="col-date"
-                                                    class="form-control form-control-sm" value="{{ date('Y-m-d') }}"
-                                                    readonly></td>
-                                        </tr>
-                                        <tr>
-                                            <td class="col-label">Mode</td>
                                             <td>
-                                                <select name="Mode_Id" id="col-mode" class="form-select form-select-sm">
-                                                    <option value="">-- Select --</option>
-                                                    @foreach ($payModes as $mode)
-                                                        <option value="{{ $mode->Id }}">{{ $mode->Name }}</option>
-                                                    @endforeach
-                                                </select>
-                                            </td>
-                                        </tr>
-                                        <tr id="txn-row" class="d-none">
-                                            <td class="col-label">Transaction ID</td>
-                                            <td>
-                                                <input type="text" name="Txn_Id" id="col-txn"
-                                                    class="form-control form-control-sm" maxlength="30"
-                                                    placeholder="Transaction ID">
+                                                <input type="date" name="Receipt_Date" id="col-date"
+                                                    class="form-control form-control-sm" value="{{ date('Y-m-d') }}">
                                             </td>
                                         </tr>
                                         <tr>
                                             <td class="col-label">Amount (A)</td>
-                                            <td><input type="number" name="Coll_Amount" id="col-amount"
-                                                    class="form-control form-control-sm" step="0.01" placeholder="0.00"
+                                            <td><input type="text" name="Coll_Amount" id="col-amount"
+                                                    class="form-control form-control-sm" inputmode="decimal" placeholder="0.00"
                                                     readonly></td>
                                         </tr>
                                         <tr>
                                             <td class="col-label">Discount (B)</td>
-                                            <td><input type="number" name="Discount" id="col-discount"
-                                                    class="form-control form-control-sm" step="0.01"
+                                            <td><input type="text" name="Discount" id="col-discount"
+                                                    class="form-control form-control-sm" inputmode="decimal"
                                                     placeholder="0.00" value="0" oninput="calcNet()"></td>
                                         </tr>
+                                        <tr>
+                                            <td class="col-label">Extra amount (C)</td>
+                                            <td><input type="text" name="Extra_Amt" id="col-extra"
+                                                    class="form-control form-control-sm" inputmode="decimal"
+                                                    placeholder="0.00" value="0" oninput="calcNet()"></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="col-label">Advance (D)</td>
+                                            <td><input type="text" name="Advance_Amt" id="col-advance"
+                                                    class="form-control form-control-sm" inputmode="decimal"
+                                                    placeholder="0.00" value="0" oninput="calcNet()"></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="col-label">Advance balance</td>
+                                            <td class="fw-bold" id="col-advance-bal">₹ 0.00</td>
+                                        </tr>
                                         <tr style="border-top:1px solid #dee2e6;">
-                                            <td class="col-label">Net Amount (A-B)</td>
+                                            <td class="col-label">Net Amount (A-B+C+D)</td>
                                             <td class="fw-bold text-success" id="col-net">₹ 0.00</td>
                                         </tr>
                                     </table>
+
+                                    <div class="mb-2 d-flex justify-content-between align-items-center">
+                                        <span class="col-label mb-0">Payment Modes</span>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-add-payline">
+                                            <i class="fas fa-plus"></i> Add
+                                        </button>
+                                    </div>
+                                    <div id="pay-lines"></div>
+                                    <div class="small text-muted mb-3">
+                                        Modes total: <strong id="pay-lines-sum">₹ 0.00</strong>
+                                        <span id="pay-lines-hint" class="ms-1"></span>
+                                    </div>
+                                    <input type="hidden" name="Payment_Lines" id="col-payment-lines">
                                     <button type="button" class="btn btn-cyan w-100" id="btn-update">
                                         <i class="fas fa-save me-1"></i> Update
                                     </button>
@@ -360,6 +381,10 @@
                                 <span class="field-label" style="width:70px;">By</span>
                                 <span class="dotted-line flex-grow-1" id="r-pay-mode">&nbsp;</span>
                             </div>
+                            <div class="row-field" id="r-txn-row" style="display:none;">
+                                <span class="field-label" style="width:110px;">Transaction ID</span>
+                                <span class="dotted-line flex-grow-1" id="r-txn-id">&nbsp;</span>
+                            </div>
                             <div class="row-field">
                                 <span class="field-label" style="width:40px;">For</span>
                                 <span class="dotted-line flex-grow-1" id="r-period"
@@ -395,14 +420,111 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
         var allDemands = []; // store all rows with their serial order
+        var payModeOptions = `@foreach ($payModes as $mode)<option value="{{ $mode->Id }}" data-name="{{ strtolower($mode->Name) }}">{{ $mode->Name }}</option>@endforeach`;
+
+        function setExtraAllowed(allowed) {
+            $('#col-extra').prop('disabled', !allowed).val('0');
+            $('#col-extra').attr('placeholder', allowed ? '0.00' : 'No plan');
+        }
 
         function calcNet() {
             var a = parseFloat($('#col-amount').val()) || 0;
             var b = parseFloat($('#col-discount').val()) || 0;
-            var net = a - b;
+            var extra = parseFloat($('#col-extra').val()) || 0;
+            var advance = parseFloat($('#col-advance').val()) || 0;
+            var net = a - b + extra + advance;
+            if (net < 0) net = 0;
             $('#col-net').text('₹ ' + net.toFixed(2));
             $('#col-net-hidden').val(net.toFixed(2));
+            if ($('#pay-lines .pay-line').length === 1) {
+                $('#pay-lines .pay-amt').first().val(net.toFixed(2));
+            }
+            syncPayLinesSum();
         }
+
+        function addPayLine(modeId, amt, txn) {
+            var html = `<div class="pay-line border rounded p-2 mb-2 bg-white">
+                <div class="row g-1 align-items-end">
+                    <div class="col-5">
+                        <label class="col-label">Mode</label>
+                        <select class="form-select form-select-sm pay-mode">
+                            <option value="">-- Select --</option>
+                            ${payModeOptions}
+                        </select>
+                    </div>
+                    <div class="col-4">
+                        <label class="col-label">Amount</label>
+                        <input type="text" class="form-control form-control-sm pay-amt" inputmode="decimal" placeholder="0.00">
+                    </div>
+                    <div class="col-3 text-end">
+                        <button type="button" class="btn btn-sm btn-outline-danger btn-remove-payline" title="Remove">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                    <div class="col-12 pay-txn-wrap d-none mt-1">
+                        <label class="col-label">Transaction ID</label>
+                        <input type="text" class="form-control form-control-sm pay-txn" maxlength="30" placeholder="Transaction ID">
+                    </div>
+                </div>
+            </div>`;
+            var $row = $(html);
+            $('#pay-lines').append($row);
+            if (modeId) $row.find('.pay-mode').val(String(modeId));
+            if (amt != null) $row.find('.pay-amt').val(parseFloat(amt).toFixed(2));
+            if (txn) $row.find('.pay-txn').val(txn);
+            togglePayLineTxn($row);
+            syncPayLinesSum();
+        }
+
+        function togglePayLineTxn($row) {
+            var name = ($row.find('.pay-mode option:selected').data('name') || '').toString();
+            var needsTxn = $row.find('.pay-mode').val() !== '' && name !== 'cash';
+            $row.find('.pay-txn-wrap').toggleClass('d-none', !needsTxn);
+            if (!needsTxn) $row.find('.pay-txn').val('');
+        }
+
+        function syncPayLinesSum() {
+            var sum = 0;
+            $('#pay-lines .pay-amt').each(function() {
+                sum += parseFloat($(this).val()) || 0;
+            });
+            var net = parseFloat($('#col-net-hidden').val()) || 0;
+            $('#pay-lines-sum').text('₹ ' + sum.toFixed(2));
+            if (net > 0 && Math.abs(sum - net) > 0.05) {
+                $('#pay-lines-hint').html('<span class="text-danger">(must equal net ₹ ' + net.toFixed(2) + ')</span>');
+            } else if (net > 0) {
+                $('#pay-lines-hint').html('<span class="text-success">(matched)</span>');
+            } else {
+                $('#pay-lines-hint').text('');
+            }
+
+            var lines = [];
+            $('#pay-lines .pay-line').each(function() {
+                lines.push({
+                    mode_id: parseInt($(this).find('.pay-mode').val(), 10) || 0,
+                    amt: parseFloat($(this).find('.pay-amt').val()) || 0,
+                    txn: ($(this).find('.pay-txn').val() || '').trim()
+                });
+            });
+            $('#col-payment-lines').val(JSON.stringify(lines));
+        }
+
+        $('#btn-add-payline').on('click', function() {
+            addPayLine();
+        });
+        $(document).on('click', '.btn-remove-payline', function() {
+            if ($('#pay-lines .pay-line').length <= 1) {
+                Swal.fire('Warning', 'At least one payment mode is required.', 'warning');
+                return;
+            }
+            $(this).closest('.pay-line').remove();
+            syncPayLinesSum();
+        });
+        $(document).on('change', '.pay-mode', function() {
+            togglePayLineTxn($(this).closest('.pay-line'));
+            syncPayLinesSum();
+        });
+        $(document).on('input', '.pay-amt, .pay-txn', syncPayLinesSum);
 
         function printReceipt() {
             var content = document.getElementById('receipt-content').innerHTML;
@@ -454,15 +576,26 @@
 
 
 
+        function showAdjusted(plan, adjusted, due) {
+            $('#col-plan').text('₹ ' + (parseFloat(plan) || 0).toFixed(2));
+            $('#col-advance-adj').text('₹ ' + (parseFloat(adjusted) || 0).toFixed(2));
+            $('#col-total').text('₹ ' + (parseFloat(due) || 0).toFixed(2));
+            $('#col-amount').val((parseFloat(due) || 0).toFixed(2));
+        }
+
         function recalcFromChecked() {
             var total = 0;
+            var plan = 0;
+            var adjusted = 0;
             var ids = [];
             var maxChecked = -1;
 
             $('.chk-demand:checked').each(function() {
                 var idx = parseInt($(this).data('index'));
                 if (idx > maxChecked) maxChecked = idx;
-                total += parseFloat($(this).data('amount'));
+                total += parseFloat($(this).data('amount')) || 0;
+                plan += parseFloat($(this).data('plan')) || 0;
+                adjusted += parseFloat($(this).data('advance')) || 0;
                 ids.push($(this).val());
             });
 
@@ -482,8 +615,7 @@
                 return;
             }
 
-            $('#col-total').text('₹ ' + total.toFixed(2));
-            $('#col-amount').val(total.toFixed(2));
+            showAdjusted(plan, adjusted, total);
             $('#col-renewal-ids').val(ids.join(','));
             calcNet();
         }
@@ -513,10 +645,43 @@
                 },
                 success: function(res) {
                     if (!res.success) {
-                        Swal.fire('Not Found', res.message, 'warning');
+                        Swal.fire('Warning', res.message, 'warning');
+                        setExtraAllowed(true);
+                        $('#demand-table-card').addClass('d-none');
+                        $('#customer-heading-name').text('');
+                        $('#col-cust-id').val('');
+                        return;
+                    }
+
+                    $('#col-advance-bal').text('₹ ' + (parseFloat(res.advance) || 0).toFixed(2));
+                    $('#col-advance').val('0');
+                    setExtraAllowed(!!res.has_plan);
+
+                    if (!res.demands || !res.demands.length) {
+                        var customer = res.customer || {};
+                        allDemands = [];
+                        $('#customer-heading-name').text(customer.Cust_Name || '');
+                        $('#col-cust-id').val(customer.Cust_Id || '');
                         $('#demand-tbody').html(
-                            '<tr><td colspan="5" class="text-center text-muted py-4">No records found.</td></tr>'
+                            '<tr><td colspan="5" class="text-center text-muted py-4">' +
+                            (res.has_plan
+                                ? 'No unpaid demand. You can collect an extra amount or an advance.'
+                                : 'No unpaid demand. This customer has no plan, so an extra amount cannot be collected. You can collect an advance.') +
+                            '</td></tr>'
                         );
+                        $('#col-total').text('₹ 0.00');
+                        $('#col-amount').val('0.00');
+                        showAdjusted(0, 0, 0);
+                        $('#col-renewal-ids').val('');
+                        $('#col-discount').val('0');
+                        $('#pay-lines').empty();
+                        addPayLine('', 0, '');
+                        calcNet();
+                        $('#demand-table-card').removeClass('d-none');
+                        $('#btn-update').prop('disabled', false)
+                            .html('<i class="fas fa-save me-1"></i> Update')
+                            .removeClass('btn-success')
+                            .addClass('btn-cyan');
                         return;
                     }
 
@@ -526,11 +691,17 @@
 
                     var html = '';
                     var totalDue = 0;
+                    var totalPlan = 0;
+                    var totalAdjusted = 0;
                     var ids = [];
 
                     $.each(res.demands, function(i, d) {
+                        var advanceAdj = parseFloat(d.Advance_Adj) || 0;
+                        var planAmt = parseFloat(d.Total_Amount) || 0;
                         if (d.Pay_Status != 2) {
                             totalDue += parseFloat(d.Due_Amt);
+                            totalPlan += planAmt;
+                            totalAdjusted += advanceAdj;
                             ids.push(d.Renewal_Id);
                         }
 
@@ -542,6 +713,8 @@
                                 value="${d.Renewal_Id}"
                                 data-index="${i}"
                                 data-amount="${d.Due_Amt}"
+                                data-plan="${planAmt}"
+                                data-advance="${advanceAdj}"
                                 checked>
                             <label class="form-check-label small text-danger fw-bold" for="chk_${d.Renewal_Id}">
                                 Unpaid
@@ -553,6 +726,8 @@
                          <td>${d.Cust_Name ?? '-'}</td>  
                         <td>${d.Inv_No ?? '-'}</td>
                         <td>${d.Inv_Period}</td>
+                        <td>₹ ${planAmt.toFixed(2)}</td>
+                        <td>₹ ${advanceAdj.toFixed(2)}</td>
                         <td class="${d.Due_Amt > 0 ? 'text-danger fw-bold' : 'text-success fw-bold'}">
                             ₹ ${parseFloat(d.Due_Amt).toFixed(2)}
                         </td>
@@ -561,11 +736,12 @@
                     });
 
                     $('#demand-tbody').html(html);
-                    $('#col-total').text('₹ ' + totalDue.toFixed(2));
-                    $('#col-amount').val(totalDue.toFixed(2));
+                    showAdjusted(totalPlan, totalAdjusted, totalDue);
                     $('#col-renewal-ids').val(ids.join(','));
                     $('#col-discount').val('0');
                     calcNet();
+                    $('#pay-lines').empty();
+                    addPayLine('', totalDue, '');
                     $('#demand-table-card').removeClass('d-none');
 
                     // disable update button if no unpaid demands
@@ -625,14 +801,17 @@
             }
 
             var total = 0;
+            var plan = 0;
+            var adjusted = 0;
             var ids = [];
             $('.chk-demand:checked').each(function() {
-                total += parseFloat($(this).data('amount'));
+                total += parseFloat($(this).data('amount')) || 0;
+                plan += parseFloat($(this).data('plan')) || 0;
+                adjusted += parseFloat($(this).data('advance')) || 0;
                 ids.push($(this).val());
             });
 
-            $('#col-total').text('₹ ' + total.toFixed(2));
-            $('#col-amount').val(total.toFixed(2));
+            showAdjusted(plan, adjusted, total);
             $('#col-renewal-ids').val(ids.join(','));
             calcNet();
         });
@@ -641,39 +820,64 @@
             $('#srch-account, #srch-userid, #srch-code, #srch-name').val('');
             $('#demand-table-card').addClass('d-none');
             $('#customer-heading-name').text('');
+            setExtraAllowed(true);
             $('#demand-tbody').html(
                 '<tr><td colspan="6" class="text-center text-muted py-4">Search a customer to view demands.</td></tr>'
             );
         });
 
-        function toggleTxnField() {
-            var name = $('#col-mode option:selected').text().trim().toLowerCase();
-            var needsTxn = $('#col-mode').val() !== '' && name !== 'cash';
-            $('#txn-row').toggleClass('d-none', !needsTxn);
-            if (!needsTxn) {
-                $('#col-txn').val('');
-            }
-        }
-
-        $('#col-mode').on('change', toggleTxnField);
-
         $('#btn-update').on('click', function() {
             var renewalIds = $('#col-renewal-ids').val();
-            var mode = $('#col-mode').val();
-            var date = $('#col-date').val();
+            syncPayLinesSum();
 
-            if (!renewalIds) {
-                Swal.fire('Warning', 'No demand selected.', 'warning');
+            var advancePay = parseFloat($('#col-advance').val()) || 0;
+            var extraPay = parseFloat($('#col-extra').val()) || 0;
+            if (extraPay > 0 && $('#col-extra').prop('disabled')) {
+                Swal.fire('Warning', 'Extra amount cannot be collected. This customer has no plan.', 'warning');
                 return;
             }
-            if (!mode) {
-                Swal.fire('Warning', 'Please select payment mode.', 'warning');
+            if (!renewalIds && advancePay <= 0 && extraPay <= 0) {
+                Swal.fire('Warning', 'Enter an extra amount or an advance amount.', 'warning');
                 return;
             }
-            if ($('#col-txn').val().trim().length > 30) {
+            if (!$('#col-date').val()) {
+                Swal.fire('Warning', 'Please select collection date.', 'warning');
+                return;
+            }
+
+            var lines = [];
+            var sum = 0;
+            var invalid = false;
+            $('#pay-lines .pay-line').each(function() {
+                var modeId = $(this).find('.pay-mode').val();
+                var amt = parseFloat($(this).find('.pay-amt').val()) || 0;
+                var txn = ($(this).find('.pay-txn').val() || '').trim();
+                var name = ($(this).find('.pay-mode option:selected').data('name') || '').toString();
+                if (!modeId || amt <= 0) {
+                    invalid = true;
+                    return false;
+                }
+                if (txn.length > 30) {
+                    invalid = 'txn';
+                    return false;
+                }
+                lines.push({ mode_id: parseInt(modeId, 10), amt: amt, txn: name === 'cash' ? '' : txn });
+                sum += amt;
+            });
+            if (invalid === 'txn') {
                 Swal.fire('Warning', 'Transaction ID can be at most 30 characters.', 'warning');
                 return;
             }
+            if (invalid || lines.length < 1) {
+                Swal.fire('Warning', 'Each payment line needs a mode and amount.', 'warning');
+                return;
+            }
+            var net = parseFloat($('#col-net-hidden').val()) || 0;
+            if (Math.abs(sum - net) > 0.05) {
+                Swal.fire('Warning', 'Payment modes total must equal net amount (₹ ' + net.toFixed(2) + ').', 'warning');
+                return;
+            }
+            $('#col-payment-lines').val(JSON.stringify(lines));
 
             var btn = $(this).prop('disabled', true).html(
                 '<i class="fas fa-spinner fa-spin me-1"></i> Updating...');
@@ -695,6 +899,13 @@
                         $('#r-amount').text(r.amount);
                         $('#r-amount-words').text(r.amount_words);
                         $('#r-pay-mode').text(r.pay_mode ?? '');
+                        if (r.txn_id) {
+                            $('#r-txn-id').text(r.txn_id);
+                            $('#r-txn-row').show();
+                        } else {
+                            $('#r-txn-id').text('');
+                            $('#r-txn-row').hide();
+                        }
                         $('#r-period').text(r.period);
                         Swal.fire('Success!', res.message, 'success').then(() => {
                             $('#receiptModal').modal('show');

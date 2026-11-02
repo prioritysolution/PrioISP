@@ -78,6 +78,9 @@ Route::middleware(['auth'])->group(function () {
   Route::get('/report/due-register',      [ReportController::class, 'dueRegister'])->name('report.due.register');
   Route::get('/report/due-register/data', [ReportController::class, 'dueRegisterData'])->name('report.due.register.data');
 
+  Route::get('/report/extra-register',      [ReportController::class, 'extraRegister'])->name('report.extra.register');
+  Route::get('/report/extra-register/data', [ReportController::class, 'extraRegisterData'])->name('report.extra.register.data');
+
   Route::get('/report/commission-register',      [CommissionController::class, 'counterCommissionRegister'])->name('report.commission.register');
   Route::get('/report/commission-register/data', [CommissionController::class, 'counterCommissionData'])->name('report.commission.register.data');
 
@@ -185,6 +188,9 @@ Route::get('/admin/report/collection-register/data', [ReportController::class, '
 
 Route::get('/admin/report/due-register',      [ReportController::class, 'adminDueRegister'])->name('admin.report.due.register');
 Route::get('/admin/report/due-register/data', [ReportController::class, 'adminDueRegisterData'])->name('admin.report.due.register.data');
+
+Route::get('/admin/report/extra-register',      [ReportController::class, 'adminExtraRegister'])->name('admin.report.extra.register');
+Route::get('/admin/report/extra-register/data', [ReportController::class, 'adminExtraRegisterData'])->name('admin.report.extra.register.data');
 
 Route::get('/admin/customer/ledger',      [ReportController::class, 'adminCustomerLedger'])->name('admin.customer.ledger');
 Route::get('/admin/customer/ledger/data', [ReportController::class, 'adminCustomerLedgerData'])->name('admin.customer.ledger.data');

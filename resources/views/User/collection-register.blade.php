@@ -56,6 +56,11 @@
                     color: #6c757d;
                     font-weight: 600;
                 }
+
+                #report-table .amt {
+                    white-space: nowrap;
+                    text-align: right;
+                }
             </style>
 
             <div class="page-title-banner shadow-sm">Collection Register</div>
@@ -123,6 +128,7 @@
                                     <th>Transaction ID</th>
                                     <th>GST</th>
                                     <th>Discount</th>
+                                    <th>Extra Amount</th>
                                     <th>Paid Amount</th>
                                 </tr>
                             </thead>
@@ -130,11 +136,12 @@
                             <tfoot>
                                 <tr class="table-header text-uppercase fw-bold">
                                     <td colspan="4" class="text-end">Total</td>
-                                    <td id="foot-demand">₹ 0.00</td>
+                                    <td id="foot-demand" class="amt">₹ 0.00</td>
                                     <td colspan="5"></td>
-                                    <td id="foot-gst">₹ 0.00</td>
-                                    <td id="foot-discount">₹ 0.00</td>
-                                    <td id="foot-paid">₹ 0.00</td>
+                                    <td id="foot-gst" class="amt">₹ 0.00</td>
+                                    <td id="foot-discount" class="amt">₹ 0.00</td>
+                                    <td id="foot-extra" class="amt">₹ 0.00</td>
+                                    <td id="foot-paid" class="amt">₹ 0.00</td>
                                 </tr>
                             </tfoot>
 
@@ -150,12 +157,7 @@
 @push('scripts')
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
-        function formatDate(dateStr) {
-            if (!dateStr) return '-';
-            var d = new Date(dateStr);
-            var m = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            return d.getDate().toString().padStart(2, '0') + '-' + m[d.getMonth()] + '-' + d.getFullYear();
-        }
+// formatDate provided globally as dd/mm/yy
 
         function fmtAmt(val) {
             return val ? '₹ ' + parseFloat(val).toFixed(2) : '-';
@@ -203,39 +205,43 @@
                     $('#report-meta-info').text('Period: ' + formatDate(fromDate) + ' to ' + formatDate(
                         toDate) + counterLabel());
                     var html = res.data.length === 0 ?
-                        '<tr><td colspan="13" class="text-center text-muted py-4">No records found.</td></tr>' :
+                        '<tr><td colspan="14" class="text-center text-muted py-4">No records found.</td></tr>' :
                         '';
                     var totalDemand = 0,
                         totalGst = 0,
                         totalDiscount = 0,
+                        totalExtra = 0,
                         totalPaid = 0;
 
                     $.each(res.data, function(i, r) {
                         totalDemand += parseFloat(r.Plan_Amount) || 0;
                         totalGst += parseFloat(r.GST_Amt) || 0;
                         totalDiscount += parseFloat(r.Disc_Amount) || 0;
+                        totalExtra += parseFloat(r.Extra_Amt) || 0;
                         totalPaid += parseFloat(r.Paid_Amount) || 0;
 
                         html += `<tr>
                                <td>${r.Sl_No}</td>                                                                         
                                <td class="fw-bold">${r.Cust_Name}</td>
                                <td>${r.User_Id}</td>
-                               <td>${r.Demand_Date}</td>
-                               <td>${fmtAmt(r.Plan_Amount)}</td>
+                               <td>${formatDate(r.Demand_Date)}</td>
+                               <td class="amt">${fmtAmt(r.Plan_Amount)}</td>
                                <td>${r.Inv_No ?? '-'}</td>
                                 <td>${r.Renewal_Details}</td>
                                 <td>${r.Pay_Date ? formatDate(r.Pay_Date) : '-'}</td>
                                 <td>${r.Pay_Mode ?? '-'}</td>
                                 <td>${r.Txn_Id ?? '-'}</td>
-                                <td>${fmtAmt(r.GST_Amt)}</td>
-                                <td>${r.Disc_Amount ? '₹ ' + parseFloat(r.Disc_Amount).toFixed(2) : '₹ 0.00'}</td>
-                                <td class="fw-bold text-success">${fmtAmt(r.Paid_Amount)}</td>
+                                <td class="amt">${fmtAmt(r.GST_Amt)}</td>
+                                <td class="amt">${r.Disc_Amount ? '₹ ' + parseFloat(r.Disc_Amount).toFixed(2) : '₹ 0.00'}</td>
+                                <td class="amt">${fmtAmt(r.Extra_Amt)}</td>
+                                <td class="amt fw-bold text-success">${fmtAmt(r.Paid_Amount)}</td>
                             </tr>`;
                     });
 
                     $('#foot-demand').text('₹ ' + totalDemand.toFixed(2));
                     $('#foot-gst').text('₹ ' + totalGst.toFixed(2));
                     $('#foot-discount').text('₹ ' + totalDiscount.toFixed(2));
+                    $('#foot-extra').text('₹ ' + totalExtra.toFixed(2));
                     $('#foot-paid').text('₹ ' + totalPaid.toFixed(2));
 
                     $('#report-tbody').html(html);
@@ -282,7 +288,7 @@
         $('#btn-excel').on('click', function() {
             var rows = [
                 ['Sl#', 'Customer Name', 'User ID', 'Demand Date', 'Demand Amount', 'Invoice No',
-                    'Renewal Details', 'Pay Date', 'Pay Mode', 'Transaction ID', 'GST', 'Discount', 'Paid Amount'
+                    'Renewal Details', 'Pay Date', 'Pay Mode', 'Transaction ID', 'GST', 'Discount', 'Extra Amount', 'Paid Amount'
                 ]
             ];
             $('#report-tbody tr').each(function() {
@@ -293,7 +299,7 @@
                 if (cols.length > 0) rows.push(cols);
             });
             rows.push(['', '', '', 'Total:', $('#foot-demand').text(), '', '', '', '', '', $('#foot-gst').text(), $(
-                '#foot-discount').text(), $('#foot-paid').text()]);
+                '#foot-discount').text(), $('#foot-extra').text(), $('#foot-paid').text()]);
             var csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n');
             var a = document.createElement('a');
             a.href = URL.createObjectURL(new Blob(['\uFEFF' + csv], {

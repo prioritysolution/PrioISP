@@ -114,13 +114,12 @@
                                     <th>Customer Name</th>
                                     <th>User ID</th>
                                     <th>Demand Date</th>
-                                    <th>Demnad Amount</th>
+                                    <th>Demand Amount</th>
+                                    <th>Extra Amount</th>
                                     <th>Invoice No.</th>
                                     <th>Renewal Details</th>
-
                                     <th>GST</th>
                                     <th>Due Amount</th>
-                                    <th>Demand Date</th>
                                 </tr>
                             </thead>
                             <tbody id="report-tbody"></tbody>
@@ -128,10 +127,10 @@
                                 <tr class="table-header text-uppercase fw-bold">
                                     <td colspan="4" class="text-end">Total</td>
                                     <td id="foot-demand">₹ 0.00</td>
+                                    <td id="foot-extra">₹ 0.00</td>
                                     <td colspan="2"></td>
                                     <td id="foot-gst">₹ 0.00</td>
                                     <td id="foot-due">₹ 0.00</td>
-                                    <td></td>
                                 </tr>
                             </tfoot>
 
@@ -147,12 +146,7 @@
 @push('scripts')
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
-        function formatDate(dateStr) {
-            if (!dateStr) return '-';
-            var d = new Date(dateStr);
-            var m = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            return d.getDate().toString().padStart(2, '0') + '-' + m[d.getMonth()] + '-' + d.getFullYear();
-        }
+// formatDate provided globally as dd/mm/yy
 
         function fmtAmt(val) {
             return val ? '₹ ' + parseFloat(val).toFixed(2) : '-';
@@ -200,14 +194,16 @@
                     $('#report-meta-info').text('Period: ' + formatDate(fromDate) + ' to ' + formatDate(
                         toDate) + counterLabel());
                     var html = res.data.length === 0 ?
-                        '<tr><td colspan="9" class="text-center text-muted py-4">No records found.</td></tr>' :
+                        '<tr><td colspan="10" class="text-center text-muted py-4">No records found.</td></tr>' :
                         '';
                     var totalDemand = 0,
+                        totalExtra = 0,
                         totalGst = 0,
                         totalDue = 0;
 
                     $.each(res.data, function(i, r) {
                         totalDemand += parseFloat(r.Plan_Amount) || 0;
+                        totalExtra += parseFloat(r.Extra_Amt) || 0;
                         totalGst += parseFloat(r.GST_Amt) || 0;
                         totalDue += parseFloat(r.Due_Amt) || 0;
 
@@ -215,17 +211,18 @@
                           <td>${r.Sl_No}</td>
                           <td class="fw-bold">${r.Cust_Name}</td>
                           <td>${r.User_Id}</td>
-                          <td>${r.Demand_Date}</td>
+                          <td>${formatDate(r.Demand_Date)}</td>
                           <td>${fmtAmt(r.Plan_Amount)}</td>
+                          <td>${fmtAmt(r.Extra_Amt)}</td>
                           <td>${r.Inv_No ?? '-'}</td>
                           <td>${r.Renewal_Details}</td>
                           <td>${fmtAmt(r.GST_Amt)}</td>
                           <td class="text-danger fw-bold">₹ ${parseFloat(r.Due_Amt).toFixed(2)}</td>
-                          <td>${formatDate(r.Demand_Date)}</td>
                      </tr>`;
                     });
 
                     $('#foot-demand').text('₹ ' + totalDemand.toFixed(2));
+                    $('#foot-extra').text('₹ ' + totalExtra.toFixed(2));
                     $('#foot-gst').text('₹ ' + totalGst.toFixed(2));
                     $('#foot-due').text('₹ ' + totalDue.toFixed(2));
 
@@ -271,13 +268,13 @@
             w.print();
         });
         $('#btn-excel').on('click', function () {
-    var rows = [['Sl#','Customer Name','User ID','Demand Date','Demand Amount','Invoice No','Renewal Details','GST','Due Amount','Demand Date']];
+    var rows = [['Sl#','Customer Name','User ID','Demand Date','Demand Amount','Extra Amount','Invoice No','Renewal Details','GST','Due Amount']];
     $('#report-tbody tr').each(function () {
         var cols = [];
         $(this).find('td').each(function () { cols.push($(this).text().trim()); });
         if (cols.length > 0) rows.push(cols);
     });
-    rows.push(['','','','Total:', $('#foot-demand').text(),'','', $('#foot-gst').text(), $('#foot-due').text(),'']);
+    rows.push(['','','','Total:', $('#foot-demand').text(), $('#foot-extra').text(),'','', $('#foot-gst').text(), $('#foot-due').text()]);
     var csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g,'""') + '"').join(',')).join('\n');
     var a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob(['\uFEFF' + csv], {type:'text/csv;charset=utf-8;'}));

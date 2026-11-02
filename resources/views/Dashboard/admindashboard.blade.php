@@ -724,9 +724,7 @@
         var clock = document.getElementById('admin-clock');
         var date = document.getElementById('admin-date');
         if (clock) clock.textContent = format12h(now);
-        if (date) date.textContent = now.toLocaleDateString('en-IN', {
-            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-        });
+        if (date) date.textContent = formatDate(now.toISOString().slice(0, 10));
     }
     tick();
     setInterval(tick, 1000);

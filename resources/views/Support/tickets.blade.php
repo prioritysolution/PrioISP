@@ -70,7 +70,7 @@
                                         <td>{{ $ticket['priority'] ?? '-' }}</td>
                                         <td>{{ $ticket['status'] ?? '-' }}</td>
                                         <td>{{ $ticket['remark'] ?? '-' }}</td>
-                                        <td>{{ $ticket['updatedAt'] ?? '-' }}</td>
+                                        <td>{{ !empty($ticket['updatedAt']) ? date('d/m/y', strtotime($ticket['updatedAt'])) : '-' }}</td>
                                         <td>
                                             <button type="button" class="btn btn-sm btn-cyan btn-view-ticket"
                                                 data-number="{{ $ticket['number'] ?? '' }}">

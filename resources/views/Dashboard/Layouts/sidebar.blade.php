@@ -66,6 +66,8 @@
                     'admin.report.collection.register' => 'fas fa-receipt',
                     'report.due.register' => 'fas fa-exclamation-circle',
                     'admin.report.due.register' => 'fas fa-exclamation-circle',
+                    'report.extra.register' => 'fas fa-plus-circle',
+                    'admin.report.extra.register' => 'fas fa-plus-circle',
                     'report.commission.register' => 'fas fa-percent',
 
                     // by menu / submenu name
@@ -89,6 +91,7 @@
                     'Renewal Register' => 'fas fa-sync-alt',
                     'Collection Register' => 'fas fa-receipt',
                     'Due Register' => 'fas fa-exclamation-circle',
+                    'Extra Amount' => 'fas fa-plus-circle',
                     'Commission Register Zone' => 'fas fa-percent',
                     'Commission Register Counter' => 'fas fa-percentage',
                     'Commission Register' => 'fas fa-percent',
