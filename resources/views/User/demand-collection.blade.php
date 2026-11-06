@@ -184,6 +184,12 @@
                                                     class="form-control form-control-sm" inputmode="decimal"
                                                     placeholder="0.00" value="0" oninput="calcNet()"></td>
                                         </tr>
+                                        <tr id="extra-period-row" style="display:none;">
+                                            <td class="col-label">Extra for period</td>
+                                            <td>
+                                                <select id="col-extra-renewal" name="Extra_Renewal_Id" class="form-select form-select-sm"></select>
+                                            </td>
+                                        </tr>
                                         <tr>
                                             <td class="col-label">Advance (D)</td>
                                             <td><input type="text" name="Advance_Amt" id="col-advance"
@@ -419,12 +425,33 @@
 @push('scripts')
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
-        var allDemands = []; // store all rows with their serial order
+        var allDemands = [];
+        var allPeriods = []; // non-expired periods for extra amount dropdown
         var payModeOptions = `@foreach ($payModes as $mode)<option value="{{ $mode->Id }}" data-name="{{ strtolower($mode->Name) }}">{{ $mode->Name }}</option>@endforeach`;
+
+        function updateExtraPeriodDropdown() {
+            var extra = parseFloat($('#col-extra').val()) || 0;
+            var $sel = $('#col-extra-renewal');
+            var $row = $('#extra-period-row');
+
+            if (extra > 0 && allPeriods.length > 0) {
+                var currentVal = $sel.val();
+                $sel.empty();
+                allPeriods.forEach(function(p) {
+                    $sel.append('<option value="' + p.Renewal_Id + '">' + p.Package_Name + ' | ' + p.Inv_Period + '</option>');
+                });
+                if (currentVal) $sel.val(currentVal);
+                $row.show();
+            } else {
+                $row.hide();
+                $sel.empty();
+            }
+        }
 
         function setExtraAllowed(allowed) {
             $('#col-extra').prop('disabled', !allowed).val('0');
             $('#col-extra').attr('placeholder', allowed ? '0.00' : 'No plan');
+            updateExtraPeriodDropdown();
         }
 
         function calcNet() {
@@ -432,6 +459,7 @@
             var b = parseFloat($('#col-discount').val()) || 0;
             var extra = parseFloat($('#col-extra').val()) || 0;
             var advance = parseFloat($('#col-advance').val()) || 0;
+            updateExtraPeriodDropdown();
             var net = a - b + extra + advance;
             if (net < 0) net = 0;
             $('#col-net').text('₹ ' + net.toFixed(2));
@@ -525,6 +553,14 @@
             syncPayLinesSum();
         });
         $(document).on('input', '.pay-amt, .pay-txn', syncPayLinesSum);
+
+        // clear leading zero on focus, restore 0 on blur if empty
+        $(document).on('focus', '#col-discount, #col-extra, #col-advance, .pay-amt', function() {
+            if ($(this).val() === '0') $(this).val('');
+        });
+        $(document).on('blur', '#col-discount, #col-extra, #col-advance, .pay-amt', function() {
+            if ($(this).val().trim() === '') $(this).val('0');
+        });
 
         function printReceipt() {
             var content = document.getElementById('receipt-content').innerHTML;
@@ -655,6 +691,7 @@
 
                     $('#col-advance-bal').text('₹ ' + (parseFloat(res.advance) || 0).toFixed(2));
                     $('#col-advance').val('0');
+                    allPeriods = res.all_periods || [];
                     setExtraAllowed(!!res.has_plan);
 
                     if (!res.demands || !res.demands.length) {
@@ -820,6 +857,7 @@
             $('#srch-account, #srch-userid, #srch-code, #srch-name').val('');
             $('#demand-table-card').addClass('d-none');
             $('#customer-heading-name').text('');
+            allPeriods = [];
             setExtraAllowed(true);
             $('#demand-tbody').html(
                 '<tr><td colspan="6" class="text-center text-muted py-4">Search a customer to view demands.</td></tr>'

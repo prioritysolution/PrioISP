@@ -121,7 +121,7 @@
                                         <th>Demand Date</th>
                                         <th>Period</th>
                                         <th>Amount</th>
-                                        <th>Advance</th>
+                                        <th>Extra Amount</th>
                                         <th>Status</th>
                                         <th>Receipt No</th>
                                         @if ($isAdmin)
@@ -341,7 +341,7 @@
                                     <td>${formatDate(r.Demand_Date)}</td>
                                     <td>${formatDate(r.Renew_From)} - ${formatDate(r.Renew_Upto)}</td>
                                     <td>₹ ${parseFloat(r.Total_Amount).toFixed(2)}</td>
-                                    <td>₹ ${(parseFloat(r.Advance_Adj) || 0).toFixed(2)}</td>
+                                    <td>₹ ${(parseFloat(r.Extra_Amt) || 0).toFixed(2)}</td>
                                     <td>${badge}</td>
                                     <td>${r.Receipt_No ?? '-'}</td>
                                     ${action}

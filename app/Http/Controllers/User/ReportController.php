@@ -225,36 +225,12 @@ public function adminExtraRegisterData(Request $request)
 
 private function extraRows(string $from, string $to, $counterId, ?string $customer): array
 {
-    $customer = trim((string) $customer);
-    $rows = DB::select("
-        SELECT
-            ROW_NUMBER() OVER (ORDER BY c.Cust_Name, r.Renew_From, pkg.Package_Name) AS Sl_No,
-            c.Cust_Name,
-            c.User_Id,
-            c.Account_No,
-            IFNULL(pkg.Package_Name, '') AS Package_Name,
-            r.Renew_From,
-            r.Renew_Upto,
-            SUM(r.Extra_Amt) AS Extra_Amt
-        FROM trans_renewal r
-        INNER JOIN mst_customer c ON c.Cust_Id = r.Cust_Id
-        LEFT JOIN mst_package pkg ON pkg.Package_Id = r.Plan_Id
-        WHERE COALESCE(r.Extra_Amt, 0) > 0
-          AND r.Renew_From <= ?
-          AND r.Renew_Upto >= ?
-          AND (? IS NULL OR r.Counter_Id = ?)
-          AND (
-                ? = ''
-                OR c.Cust_Name LIKE CONCAT('%', ?, '%')
-                OR c.User_Id LIKE CONCAT('%', ?, '%')
-                OR c.Account_No LIKE CONCAT('%', ?, '%')
-                OR c.Cust_Code LIKE CONCAT('%', ?, '%')
-          )
-        GROUP BY c.Cust_Id, c.Cust_Name, c.User_Id, c.Account_No, r.Plan_Id, pkg.Package_Name, r.Renew_From, r.Renew_Upto
-        ORDER BY c.Cust_Name, r.Renew_From, pkg.Package_Name
-    ", [$to, $from, $counterId, $counterId, $customer, $customer, $customer, $customer, $customer]);
-
-    return $rows;
+    return DB::select('CALL usp_getExtraRegister(?, ?, ?, ?)', [
+        $from,
+        $to,
+        $counterId,
+        trim((string) $customer) ?: null,
+    ]);
 }
 
 public function adminRenewalRegister(Request $request)

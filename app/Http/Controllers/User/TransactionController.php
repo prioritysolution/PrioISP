@@ -45,9 +45,10 @@ class TransactionController extends Controller
                         }
 
                         return response()->json([
-                            'success'  => true,
-                            'demands'  => [],
-                            'customer' => [
+                            'success'     => true,
+                            'demands'     => [],
+                            'all_periods' => $this->getNonExpiredPeriods((int) $customer->Cust_Id),
+                            'customer'    => [
                                 'Cust_Id'   => $customer->Cust_Id,
                                 'Cust_Name' => $customer->Cust_Name,
                             ],
@@ -61,13 +62,12 @@ class TransactionController extends Controller
                 return response()->json(['success' => false, 'message' => $result[0]->Message]);
             }
 
-            $customer = DB::table('mst_customer')->where('Cust_Id', $result[0]->Cust_Id)->first();
-
             return response()->json([
-                'success'  => true,
-                'demands'  => $result,
-                'advance'  => (float) ($customer->Advance_Amt ?? 0),
-                'has_plan' => !empty($customer->Package_Id),
+                'success'     => true,
+                'demands'     => $result,
+                'all_periods' => $this->getNonExpiredPeriods((int) $result[0]->Cust_Id),
+                'advance'     => (float) ($result[0]->Advance_Amt ?? 0),
+                'has_plan'    => !empty($result[0]->Package_Id),
             ]);
         } catch (\Exception $e) {
             Log::channel('internet')->error('Demand search error: ' . $e->getMessage());
@@ -83,6 +83,7 @@ class TransactionController extends Controller
             'Receipt_Date'   => 'required|date',
             'Discount'       => 'nullable|numeric|min:0',
             'Extra_Amt'      => 'nullable|numeric|min:0',
+            'Extra_Renewal_Id' => 'nullable|integer',
             'Advance_Amt'    => 'nullable|numeric|min:0',
             'Net_Amt'        => 'required|numeric',
             'Payment_Lines'  => 'required|string',
@@ -95,7 +96,7 @@ class TransactionController extends Controller
 
         $normalized = [];
         $linesSum   = 0.0;
-        $modes      = DB::table('mst_mode')->pluck('Mode', 'Mode_Id');
+        $modes = collect(DB::select('CALL usp_getPayMode(?)', [0]))->pluck('Name', 'Id');
 
         foreach ($lines as $line) {
             $modeId = (int) ($line['mode_id'] ?? 0);
@@ -134,8 +135,8 @@ class TransactionController extends Controller
         }
 
         if ($extra > 0) {
-            $packageId = DB::table('mst_customer')->where('Cust_Id', $request->Cust_Id)->value('Package_Id');
-            if (empty($packageId)) {
+            $custPkg = DB::select('CALL usp_getCustomerWithPackage(?, ?)', [$request->Cust_Id, null])[0] ?? null;
+            if (!$custPkg) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Extra amount cannot be collected. This customer has no plan.',
@@ -149,7 +150,8 @@ class TransactionController extends Controller
 
         $dueSum = 0.0;
         if ($renewalIds !== []) {
-            $dueSum = round((float) DB::table('trans_renewal')->whereIn('Renewal_Id', $renewalIds)->sum('Due_Amt'), 2);
+            $dueSumRow = DB::select('CALL usp_getRenewalDueSum(?)', [implode(',', $renewalIds)])[0] ?? null;
+            $dueSum = round((float) ($dueSumRow->Due_Sum ?? 0), 2);
         }
         $discountBase = $renewalIds === [] ? $extra : $dueSum;
         if ($discount - $discountBase > 0.05) {
@@ -175,14 +177,29 @@ class TransactionController extends Controller
 
         $extraApplied = false;
         $createdExtraId = null;
+        $extraAppliedToId = null;
 
         try {
             if ($extra > 0 && $renewalIds === []) {
-                $createdExtraId = $this->createExtraRenewal((int) $request->Cust_Id, $extra, $request->Receipt_Date);
-                $renewalIds = [(string) $createdExtraId];
+                if ($request->filled('Extra_Renewal_Id')) {
+                    // user picked a specific period from the dropdown
+                    $extraRenewalId = (int) $request->Extra_Renewal_Id;
+                    $this->addExtraCharge($extraRenewalId, (int) $request->Cust_Id, $extra);
+                    $extraApplied = true;
+                    $extraAppliedToId = $extraRenewalId;
+                    $renewalIds = [(string) $extraRenewalId];
+                } else {
+                    $createdExtraId = $this->createExtraRenewal((int) $request->Cust_Id, $extra, $request->Receipt_Date);
+                    $renewalIds = [(string) $createdExtraId];
+                }
             } elseif ($extra > 0) {
-                $this->addExtraCharge((int) $renewalIds[0], (int) $request->Cust_Id, $extra);
+                $extraRenewalId = $request->filled('Extra_Renewal_Id') ? (int) $request->Extra_Renewal_Id : (int) $renewalIds[0];
+                if (!in_array((string) $extraRenewalId, $renewalIds)) {
+                    $extraRenewalId = (int) $renewalIds[0];
+                }
+                $this->addExtraCharge($extraRenewalId, (int) $request->Cust_Id, $extra);
                 $extraApplied = true;
+                $extraAppliedToId = $extraRenewalId;
             }
 
             $receiptData = null;
@@ -207,7 +224,7 @@ class TransactionController extends Controller
                 $first = $stmt->fetchAll(\PDO::FETCH_OBJ);
 
                 if (!empty($first) && isset($first[0]->Error_No)) {
-                    $this->undoExtra($extraApplied, $createdExtraId, $renewalIds, (int) $request->Cust_Id, $extra);
+                    $this->undoExtra($extraApplied, $createdExtraId, $extraAppliedToId ?? (isset($renewalIds[0]) ? (int)$renewalIds[0] : null), (int) $request->Cust_Id, $extra);
                     return response()->json(['success' => false, 'message' => $first[0]->Message]);
                 }
 
@@ -217,7 +234,7 @@ class TransactionController extends Controller
 
                 if (!$row || $row->Error_No < 0) {
                     $stmt->closeCursor();
-                    $this->undoExtra($extraApplied, $createdExtraId, $renewalIds, (int) $request->Cust_Id, $extra);
+                    $this->undoExtra($extraApplied, $createdExtraId, $extraAppliedToId ?? (isset($renewalIds[0]) ? (int)$renewalIds[0] : null), (int) $request->Cust_Id, $extra);
                     return response()->json(['success' => false, 'message' => $row->Message ?? 'Failed to collect payment.']);
                 }
 
@@ -285,24 +302,24 @@ class TransactionController extends Controller
                     : 'Advance of ₹ ' . number_format($advance, 2) . ' collected.';
 
                 if (!$receiptData) {
-                    $customer = DB::table('mst_customer')->where('Cust_Id', $request->Cust_Id)->first();
+                    $custInfo  = DB::select('CALL usp_getCustomerWithPackage(?, ?)', [$request->Cust_Id, null])[0] ?? null;
                     $receiptData = [
                         'receipt_no'   => $receiptNo,
                         'date'         => date('d/m/y', strtotime($request->Receipt_Date)),
-                        'cust_name'    => $customer->Cust_Name ?? '-',
-                        'cust_code'    => $customer->Cust_Code ?? '-',
-                        'address'      => $customer->Billing_Address ?? '-',
-                        'account_no'   => $customer->Account_No ?? '-',
-                        'user_id'      => $customer->User_Id ?? '-',
+                        'cust_name'    => $custInfo->Cust_Name       ?? '-',
+                        'cust_code'    => $custInfo->Cust_Code       ?? '-',
+                        'address'      => $custInfo->Billing_Address ?? '-',
+                        'account_no'   => $custInfo->Account_No      ?? '-',
+                        'user_id'      => $custInfo->User_Id         ?? '-',
                         'amount'       => 0,
                         'pay_mode'     => '',
                         'txn_id'       => '',
-                        'package_name' => $customer ? (DB::table('mst_package')->where('Package_Id', $customer->Package_Id)->value('Package_Name') ?? '-') : '-',
-                        'period'       => 'Advance against ' . ($customer ? (DB::table('mst_package')->where('Package_Id', $customer->Package_Id)->value('Package_Name') ?? 'current plan') : 'current plan')
+                        'package_name' => $custInfo->Package_Name    ?? '-',
+                        'period'       => 'Advance against ' . ($custInfo->Package_Name ?? 'current plan')
                             . ' for '
-                            . ($customer && $customer->Renew_From ? date('d/m/y', strtotime($customer->Renew_From)) : '-')
+                            . ($custInfo->Renew_From ? date('d/m/y', strtotime($custInfo->Renew_From)) : '-')
                             . ' to '
-                            . ($customer && $customer->Renew_Upto ? date('d/m/y', strtotime($customer->Renew_Upto)) : '-'),
+                            . ($custInfo->Renew_Upto ? date('d/m/y', strtotime($custInfo->Renew_Upto)) : '-'),
                         'discount'     => '0.00',
                     ];
                 } else {
@@ -310,7 +327,7 @@ class TransactionController extends Controller
                         . ($receiptData['package_name'] ?? 'current plan');
                 }
 
-                $modeNames = DB::table('mst_mode')->pluck('Mode', 'Mode_Id');
+                $modeNames = collect(DB::select('CALL usp_getPayMode(?)', [0]))->pluck('Name', 'Id');
                 $payModes = array_filter(array_map('trim', explode(',', (string) ($receiptData['pay_mode'] ?? ''))));
                 foreach ($advanceLines as $line) {
                     $payModes[] = $modeNames[$line['mode_id']] ?? 'Payment';
@@ -328,7 +345,7 @@ class TransactionController extends Controller
                 'receipt' => $receiptData,
             ]);
         } catch (\Exception $e) {
-            $this->undoExtra($extraApplied, $createdExtraId, $renewalIds, (int) $request->Cust_Id, $extra);
+            $this->undoExtra($extraApplied, $createdExtraId, $extraAppliedToId ?? (isset($renewalIds[0]) ? (int)$renewalIds[0] : null), (int) $request->Cust_Id, $extra);
             Log::channel('internet')->error('Demand collect error: ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Failed to collect payment.'], 500);
         }
@@ -343,20 +360,37 @@ class TransactionController extends Controller
             ->exists();
     }
 
+    private function getNonExpiredPeriods(int $custId): array
+    {
+        return DB::table('trans_renewal as r')
+            ->join('mst_package as p', 'p.Package_Id', '=', 'r.Plan_Id')
+            ->where('r.Cust_Id', $custId)
+            ->where('r.Inv_No', 'not like', 'EXT-%')
+            ->where('r.Renew_Upto', '>=', now()->toDateString())
+            ->orderBy('r.Renew_From')
+            ->get(['r.Renewal_Id', 'p.Package_Name', 'r.Renew_From', 'r.Renew_Upto'])
+            ->map(fn($row) => [
+                'Renewal_Id'   => $row->Renewal_Id,
+                'Package_Name' => $row->Package_Name,
+                'Inv_Period'   => date('d/m/y', strtotime($row->Renew_From)) . ' to ' . date('d/m/y', strtotime($row->Renew_Upto)),
+            ])
+            ->toArray();
+    }
+
     private function findSearchedCustomer(Request $request): ?object
     {
         $query = DB::table('mst_customer')->select('Cust_Id', 'Cust_Name', 'Cust_Code', 'Account_No', 'User_Id', 'Billing_Address', 'Package_Id', 'Advance_Amt');
         if ($request->filled('account')) {
-            $query->where('Account_No', $request->account);
+            $query->whereRaw('Account_No = (? COLLATE utf8mb4_general_ci)', [$request->account]);
         }
         if ($request->filled('userid')) {
-            $query->where('User_Id', $request->userid);
+            $query->whereRaw('User_Id = (? COLLATE utf8mb4_general_ci)', [$request->userid]);
         }
         if ($request->filled('code')) {
             $query->where('Cust_Code', $request->code);
         }
         if ($request->filled('name')) {
-            $query->where('Cust_Name', 'like', '%' . $request->name . '%');
+            $query->whereRaw("Cust_Name LIKE CONCAT('%', ? COLLATE utf8mb4_general_ci, '%')", [$request->name]);
         }
 
         return $query->first();
@@ -418,14 +452,14 @@ class TransactionController extends Controller
         ]);
     }
 
-    private function undoExtra(bool $extraApplied, ?int $createdExtraId, array $renewalIds, int $custId, float $extra): void
+    private function undoExtra(bool $extraApplied, ?int $createdExtraId, ?int $extraAppliedToId, int $custId, float $extra): void
     {
         if ($createdExtraId) {
             DB::table('trans_renewal')->where('Renewal_Id', $createdExtraId)->where('Pay_Status', 1)->delete();
             return;
         }
-        if ($extraApplied && isset($renewalIds[0])) {
-            $this->reverseExtraCharge((int) $renewalIds[0], $custId, $extra);
+        if ($extraApplied && $extraAppliedToId) {
+            $this->reverseExtraCharge($extraAppliedToId, $custId, $extra);
         }
     }
 

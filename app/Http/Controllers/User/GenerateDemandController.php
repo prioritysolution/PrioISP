@@ -24,61 +24,20 @@ class GenerateDemandController extends Controller
     public function search(Request $request)
     {
         try {
-            $customerQuery = DB::table('mst_customer as c')
-                ->join('mst_package as p', 'p.Package_Id', '=', 'c.Package_Id')
-                ->whereIn('c.Status', [1, 2])
-                ->select(
-                    'c.Cust_Id',
-                    'c.Cust_Code',
-                    'c.Cust_Name',
-                    'c.Account_No',
-                    'c.User_Id',
-                    'c.Contact_No',
-                    'c.Renew_From',
-                    'c.Renew_Upto',
-                    'c.Due_Amount',
-                    'c.Status',
-                    'c.Advance_Amt',
-                    'p.Package_Name',
-                    'p.Basic_Amt',
-                    'p.Total_Amt',
-                    'p.Plan_Days'
-                );
+            $result = DB::select('CALL usp_searchDemandGenerate(?,?,?,?)', [
+                $request->filled('account') ? $request->account : null,
+                $request->filled('userid')  ? $request->userid  : null,
+                $request->filled('code')    ? $request->code    : null,
+                $request->filled('name')    ? $request->name    : null,
+            ]);
 
-            if ($request->filled('account')) {
-                $customerQuery->where('c.Account_No', 'like', '%' . $request->account . '%');
-            }
-            if ($request->filled('userid')) {
-                $customerQuery->where('c.User_Id', 'like', '%' . $request->userid . '%');
-            }
-            if ($request->filled('code')) {
-                $customerQuery->where('c.Cust_Code', 'like', '%' . $request->code . '%');
-            }
-            if ($request->filled('name')) {
-                $customerQuery->where('c.Cust_Name', 'like', '%' . $request->name . '%');
-            }
-
-            $customer = $customerQuery->first();
-            if (!$customer) {
+            if (empty($result)) {
                 return response()->json(['success' => false, 'message' => 'No customer found.']);
             }
 
-            $renewals = DB::table('trans_renewal')
-                ->where('Cust_Id', $customer->Cust_Id)
-                ->orderByDesc('Demand_Date')
-                ->orderByDesc('Renewal_Id')
-                ->get([
-                    'Renewal_Id',
-                    'Inv_No',
-                    'Demand_Date',
-                    'Renew_From',
-                    'Renew_Upto',
-                    'Total_Amount',
-                    'Pay_Status',
-                    'Receipt_No',
-                    'Receipt_Date',
-                    'Advance_Adj',
-                ]);
+            $customer = $result[0];
+
+            $renewals = DB::select('CALL usp_getCustomerRenewals(?)', [$customer->Cust_Id]);
 
             return response()->json([
                 'success'  => true,
@@ -102,15 +61,6 @@ class GenerateDemandController extends Controller
         ]);
 
         try {
-            $customer = DB::table('mst_customer')
-                ->where('Cust_Id', $request->Cust_Id)
-                ->first(['Cust_Name', 'Cust_Code', 'User_Id', 'Account_No', 'Contact_No', 'Billing_Address', 'Package_Id']);
-
-            $packageId = $request->Package_Id ?: (is_object($customer) ? $customer->Package_Id : null);
-            $package = $packageId
-                ? DB::table('mst_package')->where('Package_Id', $packageId)->first(['Package_Name', 'Total_Amt'])
-                : null;
-
             $pdo  = DB::getPdo();
             $stmt = $pdo->prepare('CALL usp_generateDemandManual(?,?,?,?,?,?,?)');
             $stmt->execute([
@@ -134,29 +84,36 @@ class GenerateDemandController extends Controller
             }
 
             try {
-                $adminMail = DB::table('mst_org')->value('Admin_Mail');
+                $org       = DB::select('CALL usp_getOrganization()')[0] ?? null;
+                $adminMail = $org->Admin_Mail ?? null;
 
-                if (!empty($adminMail) && $customer) {
-                    $generatedBy = session('is_admin') == 1
-                        ? (session('full_name') ?: session('user_name') ?: 'Admin')
-                        : (session('counter_name') ?: session('full_name') ?: 'Counter');
+                if (!empty($adminMail)) {
+                    $custInfo  = DB::select('CALL usp_getCustomerWithPackage(?,?)', [
+                        $request->Cust_Id,
+                        $request->Package_Id ?: null,
+                    ])[0] ?? null;
 
-                    $packageName = $package->Package_Name ?? '-';
-                    $from = date('d/m/y', strtotime($request->Renew_From));
-                    $upto = date('d/m/y', strtotime($request->Renew_Upto));
+                    if ($custInfo) {
+                        $generatedBy = session('is_admin') == 1
+                            ? (session('full_name') ?: session('user_name') ?: 'Admin')
+                            : (session('counter_name') ?: session('full_name') ?: 'Counter');
 
-                    Mail::to($adminMail)->queue(new DemandGeneratedMail([
-                        'generated_by' => $generatedBy,
-                        'cust_name'    => $customer->Cust_Name ?? '-',
-                        'cust_code'    => $customer->Cust_Code ?? '-',
-                        'user_id'      => $customer->User_Id ?? '-',
-                        'account_no'   => $customer->Account_No ?? '-',
-                        'contact_no'   => $customer->Contact_No ?? '-',
-                        'address'      => $customer->Billing_Address ?? '-',
-                        'package'      => $packageName,
-                        'period'       => 'Rs. ' . number_format((float) ($package->Total_Amt ?? 0), 2)
-                            . '/- against Renew ' . $packageName . ' package for ' . $from . ' to ' . $upto,
-                    ]));
+                        $from = date('d/m/y', strtotime($request->Renew_From));
+                        $upto = date('d/m/y', strtotime($request->Renew_Upto));
+
+                        Mail::to($adminMail)->queue(new DemandGeneratedMail([
+                            'generated_by' => $generatedBy,
+                            'cust_name'    => $custInfo->Cust_Name    ?? '-',
+                            'cust_code'    => $custInfo->Cust_Code    ?? '-',
+                            'user_id'      => $custInfo->User_Id      ?? '-',
+                            'account_no'   => $custInfo->Account_No   ?? '-',
+                            'contact_no'   => $custInfo->Contact_No   ?? '-',
+                            'address'      => $custInfo->Billing_Address ?? '-',
+                            'package'      => $custInfo->Package_Name ?? '-',
+                            'period'       => 'Rs. ' . number_format((float) ($custInfo->Total_Amt ?? 0), 2)
+                                . '/- against Renew ' . ($custInfo->Package_Name ?? '-') . ' package for ' . $from . ' to ' . $upto,
+                        ]));
+                    }
                 }
             } catch (\Exception $mailError) {
                 Log::channel('internet')->error('Demand mail error: ' . $mailError->getMessage());

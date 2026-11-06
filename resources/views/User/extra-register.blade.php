@@ -118,13 +118,14 @@
                                     <th>Package</th>
                                     <th>From</th>
                                     <th>To</th>
+                                    <th>Collection Date</th>
                                     <th>Extra Amount</th>
                                 </tr>
                             </thead>
                             <tbody id="report-tbody"></tbody>
                             <tfoot>
                                 <tr class="table-header text-uppercase fw-bold">
-                                    <td colspan="7" class="text-end">Total Extra</td>
+                                    <td colspan="8" class="text-end">Total Extra</td>
                                     <td id="foot-extra">₹ 0.00</td>
                                 </tr>
                             </tfoot>
@@ -173,9 +174,9 @@
                         return;
                     }
                     $('#lbl-total').text(res.total);
-                    $('#report-meta-info').text('Package period overlapping ' + formatDate(fromDate) + ' to ' + formatDate(toDate));
+                    $('#report-meta-info').text('Collection date: ' + formatDate(fromDate) + ' to ' + formatDate(toDate));
                     var html = res.data.length === 0
-                        ? '<tr><td colspan="8" class="text-center text-muted py-4">No extra amount found.</td></tr>'
+                        ? '<tr><td colspan="9" class="text-center text-muted py-4">No extra amount found.</td></tr>'
                         : '';
                     var totalExtra = 0;
                     $.each(res.data, function(i, r) {
@@ -188,6 +189,7 @@
                             <td>${r.Package_Name || '-'}</td>
                             <td>${formatDate(r.Renew_From)}</td>
                             <td>${formatDate(r.Renew_Upto)}</td>
+                            <td>${r.Receipt_Date ? formatDate(r.Receipt_Date) : '-'}</td>
                             <td class="fw-bold">${fmtAmt(r.Extra_Amt)}</td>
                         </tr>`;
                     });
@@ -230,7 +232,7 @@
         });
 
         $('#btn-excel').on('click', function() {
-            var rows = [['Sl#', 'Customer Name', 'User ID', 'Account No', 'Package', 'From', 'To', 'Extra Amount']];
+            var rows = [['Sl#', 'Customer Name', 'User ID', 'Account No', 'Package', 'From', 'To', 'Collection Date', 'Extra Amount']];
             $('#report-tbody tr').each(function() {
                 var cols = [];
                 $(this).find('td').each(function() {
@@ -238,7 +240,7 @@
                 });
                 if (cols.length > 1) rows.push(cols);
             });
-            rows.push(['', '', '', '', '', '', 'Total Extra', $('#foot-extra').text()]);
+            rows.push(['', '', '', '', '', '', '', 'Total Extra', $('#foot-extra').text()]);
             var csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n');
             var a = document.createElement('a');
             a.href = URL.createObjectURL(new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' }));
